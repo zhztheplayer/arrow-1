@@ -161,6 +161,19 @@ class FileSystemDatasetFactoryTest : public DatasetFactoryTest {
   std::shared_ptr<FileFormat> format_ = std::make_shared<DummyFileFormat>(schema({}));
 };
 
+class SingleFileDatasetFactoryTest : public DatasetFactoryTest {
+ public:
+  void MakeFactory(const std::string& path) {
+    fs::FileInfo info{fs::File(path)};
+    std::vector<fs::FileInfo> infos{info};
+    MakeFileSystem(infos);
+    ASSERT_OK_AND_ASSIGN(factory_, SingleFileDatasetFactory::Make(path, fs_, format_))
+  }
+
+ protected:
+  std::shared_ptr<FileFormat> format_ = std::make_shared<DummyFileFormat>(schema({}));
+};
+
 TEST_F(FileSystemDatasetFactoryTest, Basic) {
   MakeFactory({fs::File("a"), fs::File("b")});
   AssertFinishWithPaths({"a", "b"});
@@ -393,6 +406,14 @@ TEST_F(FileSystemDatasetFactoryTest, UnparseablePartitionExpression) {
 std::shared_ptr<DatasetFactory> DatasetFactoryFromSchemas(
     std::vector<std::shared_ptr<Schema>> schemas) {
   return std::make_shared<MockDatasetFactory>(schemas);
+}
+
+TEST_F(SingleFileDatasetFactoryTest, Inspect) {
+  auto s = schema({field("f64", float64())});
+  format_ = std::make_shared<DummyFileFormat>(s);
+
+  MakeFactory("test");
+  AssertInspect(s);
 }
 
 TEST(UnionDatasetFactoryTest, Basic) {

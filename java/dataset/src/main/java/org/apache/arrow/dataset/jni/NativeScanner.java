@@ -17,11 +17,14 @@
 
 package org.apache.arrow.dataset.jni;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
 import org.apache.arrow.dataset.scanner.ScanTask;
 import org.apache.arrow.dataset.scanner.Scanner;
+import org.apache.arrow.util.SchemaUtils;
+import org.apache.arrow.vector.types.pojo.Schema;
 
 /**
  * Native implementation of {@link Scanner}.
@@ -39,8 +42,17 @@ public class NativeScanner implements Scanner {
   @Override
   public Iterable<? extends ScanTask> scan() {
     return Arrays.stream(JniWrapper.get().getScanTasksFromScanner(scannerId))
-        .mapToObj(id -> new NativeScanTask(context, id))
+        .mapToObj(id -> new NativeScanTask(context, schema(), id))
         .collect(Collectors.toList());
+  }
+
+  @Override
+  public Schema schema() {
+    try {
+      return SchemaUtils.get().deserialize(JniWrapper.get().getSchemaFromScanner(scannerId), context.getAllocator());
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override

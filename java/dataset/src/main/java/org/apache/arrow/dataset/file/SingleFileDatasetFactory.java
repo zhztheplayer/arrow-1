@@ -15,17 +15,22 @@
  * limitations under the License.
  */
 
-package org.apache.arrow.dataset.scanner;
+package org.apache.arrow.dataset.file;
 
-import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.arrow.dataset.jni.NativeDatasetFactory;
+import org.apache.arrow.memory.BufferAllocator;
 
 /**
- * A high level interface for scanning data over datasets.
+ * Java binding of the C++ SingleFileDataSourceDiscovery.
  */
-public interface Scanner extends AutoCloseable {
+public class SingleFileDatasetFactory extends NativeDatasetFactory {
 
-  Iterable<? extends ScanTask> scan();
+  public SingleFileDatasetFactory(BufferAllocator allocator, FileFormat format, FileSystem fs, String path) {
+    super(allocator, createNative(format, fs, path));
+  }
 
-  Schema schema();
+  private static long createNative(FileFormat format, FileSystem fs, String path) {
+    return JniWrapper.get().makeSingleFileDatasetFactory(path, format.id(), fs.id());
+  }
 
 }
