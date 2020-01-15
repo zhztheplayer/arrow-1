@@ -20,33 +20,22 @@ package org.apache.arrow.dataset.jni;
 import org.apache.arrow.memory.BaseAllocator;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.util.Preconditions;
-import org.apache.arrow.vector.types.pojo.Schema;
 
 /**
  * Context for relevant classes of NativeDataSource.
  */
 public class NativeContext {
-  private final Schema schema;
   private final BufferAllocator allocator;
 
   /**
    * Constructor.
    *
-   * @param schema Expected schema of the returned {@link org.apache.arrow.vector.VectorSchemaRoot}s.
    * @param allocator The allocator in use.
    */
-  public NativeContext(Schema schema, BufferAllocator allocator) {
+  public NativeContext(BufferAllocator allocator) {
     Preconditions.checkArgument(allocator instanceof BaseAllocator,
         "currently only instance of BaseAllocator supported");
-    this.schema = schema;
     this.allocator = allocator;
-  }
-
-  /**
-   * Returns the expected schema of the returned {@link org.apache.arrow.vector.VectorSchemaRoot}s.
-   */
-  public Schema getSchema() {
-    return schema;
   }
 
   /**

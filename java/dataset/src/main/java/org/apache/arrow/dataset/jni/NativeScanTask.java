@@ -40,10 +40,15 @@ import io.netty.buffer.ArrowBuf;
  */
 public class NativeScanTask implements ScanTask, AutoCloseable {
   private final NativeContext context;
+  private final Schema schema;
   private final long scanTaskId;
 
-  public NativeScanTask(NativeContext context, long scanTaskId) {
+  /**
+   * Constructor.
+   */
+  public NativeScanTask(NativeContext context, Schema schema, long scanTaskId) {
     this.context = context;
+    this.schema = schema;
     this.scanTaskId = scanTaskId;
   }
 
@@ -144,7 +149,7 @@ public class NativeScanTask implements ScanTask, AutoCloseable {
 
     @Override
     protected Schema readSchema() throws IOException {
-      return context.getSchema();
+      return schema;
     }
 
 

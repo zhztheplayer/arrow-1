@@ -17,13 +17,9 @@
 
 package org.apache.arrow.dataset.jni;
 
-import java.io.IOException;
-
-import org.apache.arrow.dataset.fragment.DataFragment;
 import org.apache.arrow.dataset.scanner.ScanOptions;
 import org.apache.arrow.dataset.scanner.Scanner;
 import org.apache.arrow.dataset.source.Dataset;
-import org.apache.arrow.util.SchemaUtils;
 
 /**
  * Native implementation of {@link Dataset}.
@@ -39,21 +35,10 @@ public class NativeDataset implements Dataset, AutoCloseable {
   }
 
   @Override
-  public Iterable<? extends DataFragment> getFragments(ScanOptions options) {
-    throw new UnsupportedOperationException("Use of getFragments() on NativeDataset is currently forbidden. " +
-        "Try creating scanners instead");
-  }
-
-  @Override
   public Scanner newScan(ScanOptions options) {
-    try {
-      byte[] schema = SchemaUtils.get().serialize(context.getSchema());
-      long scannerId = JniWrapper.get().createScanner(datasetId, schema, options.getColumns(),
-          options.getFilter().toByteArray(), options.getBatchSize());
-      return new NativeScanner(context, scannerId);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+    long scannerId = JniWrapper.get().createScanner(datasetId, options.getColumns(),
+        options.getFilter().toByteArray(), options.getBatchSize());
+    return new NativeScanner(context, scannerId);
   }
 
   public long getDatasetId() {

@@ -15,14 +15,25 @@
  * limitations under the License.
  */
 
-package org.apache.arrow.dataset.fragment;
+package org.apache.arrow.dataset.file;
 
-import org.apache.arrow.dataset.scanner.ScanTask;
+import org.apache.arrow.dataset.jni.JniLoader;
 
 /**
- * A granular piece of a Dataset, such as an individual file,
- * which can be read/scanned separately from other fragments.
+ * JniWrapper for filesystem based {@link org.apache.arrow.dataset.source.Dataset} implementations.
  */
-public interface DataFragment {
-  Iterable<? extends ScanTask> scan();
+public class JniWrapper {
+
+  private static final JniWrapper INSTANCE = new JniWrapper();
+  
+  public static JniWrapper get() {
+    return INSTANCE;
+  }
+
+  private JniWrapper() {
+    JniLoader.get().ensureLoaded();
+  }
+
+  public native long makeSingleFileDatasetFactory(String path, int fileFormat, int fileSystem);
+
 }

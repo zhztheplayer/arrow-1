@@ -31,6 +31,7 @@
 #include "jni/dataset/Types.pb.h"
 
 #include "org_apache_arrow_dataset_jni_JniWrapper.h"
+#include "org_apache_arrow_dataset_file_JniWrapper.h"
 
 static jclass illegal_access_exception_class;
 static jclass illegal_argument_exception_class;
@@ -259,27 +260,27 @@ std::shared_ptr<arrow::dataset::Expression> translateNode(types::TreeNode node, 
   if (node.has_intnode()) {
     const types::IntNode& int_node = node.intnode();
     int32_t val = int_node.value();
-    return std::make_shared<arrow::dataset::ScalarExpression>(std::make_shared<arrow::NumericScalar<arrow::Int32Type>>(val));
+    return std::make_shared<arrow::dataset::ScalarExpression>(std::make_shared<arrow::Int32Scalar>(val));
   }
   if (node.has_longnode()) {
     const types::LongNode& long_node = node.longnode();
     int64_t val = long_node.value();
-    return std::make_shared<arrow::dataset::ScalarExpression>(std::make_shared<arrow::NumericScalar<arrow::Int64Type>>(val));
+    return std::make_shared<arrow::dataset::ScalarExpression>(std::make_shared<arrow::Int64Scalar>(val));
   }
   if (node.has_floatnode()) {
     const types::FloatNode& float_node = node.floatnode();
     float_t val = float_node.value();
-    return std::make_shared<arrow::dataset::ScalarExpression>(std::make_shared<arrow::NumericScalar<arrow::FloatType>>(val));
+    return std::make_shared<arrow::dataset::ScalarExpression>(std::make_shared<arrow::FloatScalar>(val));
   }
   if (node.has_doublenode()) {
     const types::DoubleNode& double_node = node.doublenode();
     double_t val = double_node.value();
-    return std::make_shared<arrow::dataset::ScalarExpression>(std::make_shared<arrow::NumericScalar<arrow::DoubleType>>(val));
+    return std::make_shared<arrow::dataset::ScalarExpression>(std::make_shared<arrow::DoubleScalar>(val));
   }
   if (node.has_booleannode()) {
     const types::BooleanNode& boolean_node = node.booleannode();
     bool val = boolean_node.value();
-    return std::make_shared<arrow::dataset::ScalarExpression>(std::make_shared<arrow::NumericScalar<arrow::BooleanType>>(val));
+    return std::make_shared<arrow::dataset::ScalarExpression>(std::make_shared<arrow::BooleanScalar>(val));
   }
   if (node.has_andnode()) {
     const types::AndNode& and_node = node.andnode();
@@ -365,13 +366,15 @@ JNIEXPORT jbyteArray JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_inspec
 /*
  * Class:     org_apache_arrow_dataset_jni_JniWrapper
  * Method:    createDataset
- * Signature: (J)J
+ * Signature: (J[B)J
  */
 JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createDataset
-    (JNIEnv* env, jobject, jlong dataset_factory_id) {
+    (JNIEnv* env, jobject, jlong dataset_factory_id, jbyteArray schema_bytes) {
   std::shared_ptr<arrow::dataset::DatasetFactory> d
       = dataset_factory_holder_.Lookup(dataset_factory_id);
-  JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::dataset::Dataset> dataset, d->Finish())
+  std::shared_ptr<arrow::Schema> schema;
+  schema = FromSchemaByteArray(env, schema_bytes);
+  JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::dataset::Dataset> dataset, d->Finish(schema))
   return dataset_holder_.Insert(dataset);
 }
 
@@ -388,15 +391,13 @@ JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeDataset
 /*
  * Class:     org_apache_arrow_dataset_jni_JniWrapper
  * Method:    createScanner
- * Signature: (J[B[Ljava/lang/String;[BJ)J
+ * Signature: (J[Ljava/lang/String;[BJ)J
  */
 JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScanner
-    (JNIEnv* env, jobject, jlong dataset_id, jbyteArray schema_bytes, jobjectArray columns,
+    (JNIEnv* env, jobject, jlong dataset_id, jobjectArray columns,
         jbyteArray filter, jlong batch_size) {
   std::shared_ptr<arrow::dataset::ScanContext> context = std::make_shared<arrow::dataset::ScanContext>();
-  std::shared_ptr<arrow::Schema> schema;
   std::shared_ptr<arrow::dataset::Dataset> dataset = dataset_holder_.Lookup(dataset_id);
-  schema = FromSchemaByteArray(env, schema_bytes);
   JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::dataset::ScannerBuilder> scanner_builder, dataset->NewScan())
 
   std::vector<std::string> column_vector = ToStringVector(env, columns);
@@ -421,16 +422,15 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScann
   return id;
 }
 
-
-
 /*
  * Class:     org_apache_arrow_dataset_jni_JniWrapper
- * Method:    closeScanner
- * Signature: (J)V
+ * Method:    getSchemaFromScanner
+ * Signature: (J)[B
  */
-JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeScanner
-    (JNIEnv *, jobject, jlong scanner_id) {
-  scanner_holder_.Erase(scanner_id);
+JNIEXPORT jbyteArray JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_getSchemaFromScanner
+    (JNIEnv* env, jobject, jlong scanner_id) {
+  std::shared_ptr<arrow::Schema> schema = scanner_holder_.Lookup(scanner_id)->schema();
+  return ToSchemaByteArray(env, schema);
 }
 
 /*
@@ -450,6 +450,16 @@ JNIEXPORT jlongArray JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_getSca
     env->SetLongArrayRegion(ret, i, 1, id);
   }
   return ret;
+}
+
+/*
+ * Class:     org_apache_arrow_dataset_jni_JniWrapper
+ * Method:    closeScanner
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeScanner
+    (JNIEnv *, jobject, jlong scanner_id) {
+  scanner_holder_.Erase(scanner_id);
 }
 
 /*
@@ -547,4 +557,21 @@ JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeIterato
 JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_releaseBuffer
     (JNIEnv *, jobject, jlong id) {
   buffer_holder_.Erase(id);
+}
+
+
+/*
+ * Class:     org_apache_arrow_dataset_file_JniWrapper
+ * Method:    makeSingleFileDatasetFactory
+ * Signature: (Ljava/lang/String;II)J
+ */
+JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_file_JniWrapper_makeSingleFileDatasetFactory
+    (JNIEnv* env, jobject, jstring path, jint file_format_id, jint file_system_id) {
+  std::shared_ptr<arrow::dataset::FileFormat> file_format = GetFileFormat(env, file_format_id);
+  std::string out_path;
+  std::shared_ptr<arrow::fs::FileSystem> fs
+      = GetFileSystem(env, file_system_id, JStringToCString(env, path), &out_path);
+  JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::dataset::DatasetFactory> d,
+                      arrow::dataset::SingleFileDatasetFactory::Make(out_path, fs, file_format))
+  return dataset_factory_holder_.Insert(d);
 }

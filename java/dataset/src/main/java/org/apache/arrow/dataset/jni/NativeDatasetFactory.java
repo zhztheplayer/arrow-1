@@ -53,8 +53,13 @@ public class NativeDatasetFactory implements DatasetFactory, AutoCloseable {
 
   @Override
   public NativeDataset finish(Schema schema) {
-    return new NativeDataset(new NativeContext(schema, allocator),
-        JniWrapper.get().createDataset(dataSourceDiscoveryId));
+    try {
+      byte[] serialized = SchemaUtils.get().serialize(schema);
+      return new NativeDataset(new NativeContext(allocator),
+          JniWrapper.get().createDataset(dataSourceDiscoveryId, serialized));
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override

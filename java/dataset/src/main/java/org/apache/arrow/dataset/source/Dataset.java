@@ -17,7 +17,6 @@
 
 package org.apache.arrow.dataset.source;
 
-import org.apache.arrow.dataset.fragment.DataFragment;
 import org.apache.arrow.dataset.scanner.ScanOptions;
 import org.apache.arrow.dataset.scanner.Scanner;
 
@@ -27,6 +26,4 @@ import org.apache.arrow.dataset.scanner.Scanner;
 public interface Dataset {
 
   Scanner newScan(ScanOptions options);
-
-  Iterable<? extends DataFragment> getFragments(ScanOptions options);
 }

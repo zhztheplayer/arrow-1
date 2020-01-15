@@ -36,16 +36,17 @@ public class JniWrapper {
 
   public native byte[] inspectSchema(long datasetFactoryId);
 
-  public native long createDataset(long datasetFactoryId);
+  public native long createDataset(long datasetFactoryId, byte[] schema);
 
   public native void closeDataset(long datasetId);
 
-  public native long createScanner(long datasetId, byte[] schema,
-                                   String[] columns, byte[] filter, long batchSize);
+  public native long createScanner(long datasetId, String[] columns, byte[] filter, long batchSize);
 
-  public native void closeScanner(long scannerId);
+  public native byte[] getSchemaFromScanner(long scannerId);
 
   public native long[] getScanTasksFromScanner(long scannerId);
+
+  public native void closeScanner(long scannerId);
 
   public native void closeScanTask(long scanTaskId);
 
