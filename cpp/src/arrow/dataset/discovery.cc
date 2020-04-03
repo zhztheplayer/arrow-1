@@ -186,6 +186,16 @@ Result<std::shared_ptr<DatasetFactory>> FileSystemDatasetFactory::Make(
               std::move(options));
 }
 
+Result<std::shared_ptr<DatasetFactory>> FileSystemDatasetFactory::Make(
+    std::string uri, std::shared_ptr<FileFormat> format,
+    FileSystemFactoryOptions options) {
+  std::string internal_path;
+  ARROW_ASSIGN_OR_RAISE(std::shared_ptr<fs::FileSystem> filesystem,
+                        arrow::fs::FileSystemFromUri(uri, &internal_path))
+  return std::shared_ptr<DatasetFactory>(new FileSystemDatasetFactory(
+      {internal_path}, std::move(filesystem), std::move(format), std::move(options)));
+}
+
 Result<std::shared_ptr<Schema>> FileSystemDatasetFactory::PartitionSchema() {
   if (auto partitioning = options_.partitioning.partitioning()) {
     return partitioning->schema();
