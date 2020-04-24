@@ -45,16 +45,20 @@ import org.junit.Test;
 
 public class NativeDatasetTest {
 
-  private String sampleParquet() {
-    return NativeDatasetTest.class.getResource(File.separator + "userdata1.parquet").getPath();
+  private String sampleParquetPath() {
+    return NativeDatasetTest.class.getResource(File.separator + "userdata.parquet").getPath();
+  }
+
+  private String sampleParquetSchema() {
+    return "Schema<registration_dttm: Timestamp(NANOSECOND, null), id: Int(32, true), " +
+        "first_name: Utf8, last_name: Utf8, email: Utf8, gender: Utf8, ip_address: Utf8, cc: Utf8, " +
+        "country: Utf8, birthdate: Utf8, salary: FloatingPoint(DOUBLE), title: Utf8, comments: Utf8>";
   }
 
   private void testDatasetFactoryEndToEnd(DatasetFactory factory) {
     Schema schema = factory.inspect();
 
-    Assert.assertEquals("Schema<registration_dttm: Timestamp(NANOSECOND, null), id: Int(32, true), " +
-        "first_name: Utf8, last_name: Utf8, email: Utf8, gender: Utf8, ip_address: Utf8, cc: Utf8, " +
-        "country: Utf8, birthdate: Utf8, salary: FloatingPoint(DOUBLE), title: Utf8, comments: Utf8>",
+    Assert.assertEquals(sampleParquetSchema(),
         schema.toString());
 
     Dataset dataset = factory.finish();
@@ -71,16 +75,11 @@ public class NativeDatasetTest {
     Assert.assertEquals(10, data.size());
     VectorSchemaRoot vsr = data.get(0);
     Assert.assertEquals(100, vsr.getRowCount());
-
-
-    // FIXME when using list field:
-    // FIXME it seems c++ parquet reader doesn't create buffers for list field it self,
-    // FIXME as a result Java side buffer pointer gets out of bound.
   }
 
   @Test
   public void testLocalFs() {
-    String path = sampleParquet();
+    String path = sampleParquetPath();
     DatasetFactory discovery = new SingleFileDatasetFactory(
         new RootAllocator(Long.MAX_VALUE), FileFormat.PARQUET, FileSystem.LOCAL,
         path);
@@ -89,7 +88,7 @@ public class NativeDatasetTest {
 
   @Test
   public void testHdfsWithFileProtocol() {
-    String path = "file:" + sampleParquet();
+    String path = "file:" + sampleParquetPath();
     DatasetFactory discovery = new SingleFileDatasetFactory(
         new RootAllocator(Long.MAX_VALUE), FileFormat.PARQUET, FileSystem.HDFS,
         path);
@@ -114,7 +113,7 @@ public class NativeDatasetTest {
 
   @Test
   public void testScanner() {
-    String path = sampleParquet();
+    String path = sampleParquetPath();
     RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
     NativeDatasetFactory factory = new SingleFileDatasetFactory(
         allocator, FileFormat.PARQUET, FileSystem.LOCAL,
@@ -131,7 +130,7 @@ public class NativeDatasetTest {
     int vsrCount = 0;
     VectorSchemaRoot vsr = null;
     while (itr.hasNext()) {
-      // FIXME VectorSchemaRoot is not actually something ITERABLE.// Using a reader convention instead.
+      // FIXME VectorSchemaRoot is not actually something ITERABLE. Use a reader convention instead.
       vsrCount++;
       vsr = itr.next();
       Assert.assertEquals(100, vsr.getRowCount());
@@ -150,7 +149,7 @@ public class NativeDatasetTest {
 
   @Test
   public void testScannerWithFilter() {
-    String path = sampleParquet();
+    String path = sampleParquetPath();
     RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
     NativeDatasetFactory factory = new SingleFileDatasetFactory(
         allocator, FileFormat.PARQUET, FileSystem.LOCAL,
@@ -161,7 +160,7 @@ public class NativeDatasetTest {
     DatasetTypes.Condition condition = DatasetTypes.Condition.newBuilder()
         .setRoot(DatasetTypes.TreeNode.newBuilder()
             .setCpNode(DatasetTypes.ComparisonNode.newBuilder()
-                .setOpName("equal") // todo make op names enumerable
+                .setOpName("equal")
                 .setLeftArg(
                     DatasetTypes.TreeNode.newBuilder().setFieldNode(
                         DatasetTypes.FieldNode.newBuilder().setName("id").build()).build())
@@ -182,7 +181,7 @@ public class NativeDatasetTest {
     VectorSchemaRoot vsr = null;
     int rowCount = 0;
     while (itr.hasNext()) {
-      // FIXME VectorSchemaRoot is not actually something ITERABLE. Using a reader convention instead.
+      // FIXME VectorSchemaRoot is not actually something ITERABLE. Use a reader convention instead.
       vsr = itr.next();
       // only the line with id = 500 selected
       rowCount += vsr.getRowCount();
@@ -197,16 +196,6 @@ public class NativeDatasetTest {
       vsr.close();
     }
     allocator.close();
-  }
-
-  @Ignore
-  public void testFilter() {
-    // todo
-  }
-
-  @Ignore
-  public void testProjector() {
-    // todo
   }
 
   private <T> List<T> collect(Iterable<T> iterable) {

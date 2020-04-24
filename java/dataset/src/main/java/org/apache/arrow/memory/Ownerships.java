@@ -35,10 +35,12 @@ public class Ownerships {
    */
   public BufferLedger takeOwnership(BaseAllocator allocator, AllocationManager allocationManager) {
     final BufferLedger ledger = allocationManager.associate(allocator);
-    boolean succeed = allocator.forceAllocate(allocationManager.getSize());
+    long size = allocationManager.getSize();
+    boolean succeed = allocator.forceAllocate(size);
     if (!succeed) {
       throw new OutOfMemoryException("Target allocator is full");
     }
+    ((BaseAllocator) allocationManager.getOwningLedger().getAllocator()).releaseBytes(size);
     allocationManager.setOwningLedger(ledger);
     return ledger;
   }

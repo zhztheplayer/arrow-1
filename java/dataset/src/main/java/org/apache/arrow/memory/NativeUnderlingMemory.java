@@ -40,6 +40,7 @@ public class NativeUnderlingMemory extends AllocationManager {
     this.size = size;
     this.nativeInstanceId = nativeInstanceId;
     this.address = address;
+    accountingAllocator.forceAllocate(size);
   }
 
   @Override
