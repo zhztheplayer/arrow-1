@@ -252,7 +252,7 @@ void releaseFilterInput(jbyteArray condition_arr, jbyte* condition_bytes, JNIEnv
 }
 
 // fixme in development. Not all node types considered.
-std::shared_ptr<arrow::dataset::Expression> translateNode(types::TreeNode node, JNIEnv* env) {
+std::shared_ptr<arrow::dataset::Expression> TranslateNode(types::TreeNode node, JNIEnv* env) {
   if (node.has_fieldnode()) {
     const types::FieldNode& f_node = node.fieldnode();
     const std::string& name = f_node.name();
@@ -287,13 +287,13 @@ std::shared_ptr<arrow::dataset::Expression> translateNode(types::TreeNode node, 
     const types::AndNode& and_node = node.andnode();
     const types::TreeNode& left_arg = and_node.leftarg();
     const types::TreeNode& right_arg = and_node.rightarg();
-    return std::make_shared<arrow::dataset::AndExpression>(translateNode(left_arg, env), translateNode(right_arg, env));
+    return std::make_shared<arrow::dataset::AndExpression>(TranslateNode(left_arg, env), TranslateNode(right_arg, env));
   }
   if (node.has_ornode()) {
     const types::OrNode& or_node = node.ornode();
     const types::TreeNode& left_arg = or_node.leftarg();
     const types::TreeNode& right_arg = or_node.rightarg();
-    return std::make_shared<arrow::dataset::OrExpression>(translateNode(left_arg, env), translateNode(right_arg, env));
+    return std::make_shared<arrow::dataset::OrExpression>(TranslateNode(left_arg, env), TranslateNode(right_arg, env));
   }
   if (node.has_cpnode()) {
     const types::ComparisonNode& cp_node = node.cpnode();
@@ -317,18 +317,19 @@ std::shared_ptr<arrow::dataset::Expression> translateNode(types::TreeNode node, 
     const types::TreeNode& left_arg = cp_node.leftarg();
     const types::TreeNode& right_arg = cp_node.rightarg();
     return std::make_shared<arrow::dataset::ComparisonExpression>(op,
-        translateNode(left_arg, env), translateNode(right_arg, env));
+                                                                  TranslateNode(left_arg, env),
+                                                                  TranslateNode(right_arg, env));
   }
   if (node.has_notnode()) {
     const types::NotNode& not_node = node.notnode();
     const ::types::TreeNode& child = not_node.args();
-    std::shared_ptr<arrow::dataset::Expression> translatedChild = translateNode(child, env);
+    std::shared_ptr<arrow::dataset::Expression> translatedChild = TranslateNode(child, env);
     return std::make_shared<arrow::dataset::NotExpression>(translatedChild);
   }
   if (node.has_isvalidnode()) {
     const types::IsValidNode& is_valid_node = node.isvalidnode();
     const ::types::TreeNode& child = is_valid_node.args();
-    std::shared_ptr<arrow::dataset::Expression> translatedChild = translateNode(child, env);
+    std::shared_ptr<arrow::dataset::Expression> translatedChild = TranslateNode(child, env);
     return std::make_shared<arrow::dataset::IsValidExpression>(translatedChild);
   }
   std::string error_message = "Unknown node type";
@@ -338,7 +339,7 @@ std::shared_ptr<arrow::dataset::Expression> translateNode(types::TreeNode node, 
 
 std::shared_ptr<arrow::dataset::Expression> translateFilter(types::Condition condition, JNIEnv* env) {
   const types::TreeNode& tree_node = condition.root();
-  return translateNode(tree_node, env);
+  return TranslateNode(tree_node, env);
 }
 
 /*
