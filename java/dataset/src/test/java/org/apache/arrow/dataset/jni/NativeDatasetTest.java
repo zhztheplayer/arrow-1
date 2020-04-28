@@ -129,7 +129,7 @@ public class NativeDatasetTest {
     Assert.assertEquals(1, scanTasks.size());
 
     ScanTask scanTask = scanTasks.get(0);
-    ScanTask.Itr itr = scanTask.scan();
+    ScanTask.BatchIterator itr = scanTask.scan();
     int vsrCount = 0;
     while (itr.hasNext()) {
       vsrCount++;
@@ -174,7 +174,7 @@ public class NativeDatasetTest {
     Assert.assertEquals(1, scanTasks.size());
 
     ScanTask scanTask = scanTasks.get(0);
-    ScanTask.Itr itr = scanTask.scan();
+    ScanTask.BatchIterator itr = scanTask.scan();
     int rowCount = 0;
     while (itr.hasNext()) {
       ArrowRecordBatch batch = itr.next();

@@ -44,17 +44,9 @@ public class JniWrapper {
 
   public native byte[] getSchemaFromScanner(long scannerId);
 
-  public native long[] getScanTasksFromScanner(long scannerId);
-
   public native void closeScanner(long scannerId);
 
-  public native void closeScanTask(long scanTaskId);
-
-  public native long scan(long scanTaskId);
-
-  public native NativeRecordBatchHandle nextRecordBatch(long recordBatchIteratorId);
-
-  public native void closeIterator(long id);
+  public native NativeRecordBatchHandle nextRecordBatch(long scannerId);
 
   public native void releaseBuffer(long bufferId);
 

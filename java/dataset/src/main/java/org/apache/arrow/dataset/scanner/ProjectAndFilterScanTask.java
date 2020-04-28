@@ -41,7 +41,7 @@ public class ProjectAndFilterScanTask implements ScanTask {
   }
 
   @Override
-  public Itr scan() {
+  public BatchIterator scan() {
     // TODO UNIMPLEMENTED
     return delegate.scan();
   }
