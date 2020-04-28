@@ -19,6 +19,7 @@ package org.apache.arrow.dataset.jni;
 
 import java.util.ArrayList;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import org.apache.arrow.dataset.scanner.ScanTask;
@@ -28,36 +29,37 @@ import org.apache.arrow.memory.NativeUnderlingMemory;
 import org.apache.arrow.memory.Ownerships;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
-import org.apache.arrow.vector.types.pojo.Schema;
 
 import io.netty.buffer.ArrowBuf;
 
 /**
- * Native implementation of {@link NativeScanTask}.
+ * Native implementation of {@link ScanTask}. Currently RecordBatches are iterated directly by the scanner
+ * id via {@link JniWrapper}, thus we allow only one-time execution of method {@link #scan()}. If a re-scan
+ * operation is expected, call {@link NativeDataset#newScan} to create a new scanner instance.
  */
 public class NativeScanTask implements ScanTask, AutoCloseable {
-  private final NativeContext context;
-  private final Schema schema;
-  private final long scanTaskId;
+  private final NativeScanner scanner;
+  private final AtomicBoolean executed = new AtomicBoolean(false);
 
   /**
    * Constructor.
    */
-  public NativeScanTask(NativeContext context, Schema schema, long scanTaskId) {
-    this.context = context;
-    this.schema = schema;
-    this.scanTaskId = scanTaskId;
+  public NativeScanTask(NativeScanner scanner) {
+    this.scanner = scanner;
   }
 
   @Override
-  public Itr scan() {
-    return new Itr() {
-      private final long recordBatchIteratorId = JniWrapper.get().scan(scanTaskId);
+  public BatchIterator scan() {
+    if (!executed.compareAndSet(false, true)) {
+      throw new UnsupportedOperationException("Method scan() cannot be executed more than once if it is a " +
+          "native scan task");
+    }
+    return new BatchIterator() {
       private ArrowRecordBatch peek = null;
 
       @Override
       public void close() throws Exception {
-        JniWrapper.get().closeIterator(recordBatchIteratorId);
+        scanner.close();
       }
 
       @Override
@@ -65,13 +67,13 @@ public class NativeScanTask implements ScanTask, AutoCloseable {
         if (peek != null) {
           return true;
         }
-        NativeRecordBatchHandle handle = JniWrapper.get().nextRecordBatch(recordBatchIteratorId);
+        NativeRecordBatchHandle handle = JniWrapper.get().nextRecordBatch(scanner.getId());
         if (handle == null) {
           return false;
         }
         final ArrayList<ArrowBuf> buffers = new ArrayList<>();
         for (NativeRecordBatchHandle.Buffer buffer : handle.getBuffers()) {
-          final BaseAllocator allocator = context.getAllocator();
+          final BaseAllocator allocator = scanner.getContext().getAllocator();
           final NativeUnderlingMemory am = new NativeUnderlingMemory(allocator,
               (int) buffer.size, buffer.nativeInstanceId, buffer.memoryAddress);
           final BufferLedger ledger = Ownerships.get().takeOwnership(allocator, am);
@@ -103,7 +105,7 @@ public class NativeScanTask implements ScanTask, AutoCloseable {
   }
 
   @Override
-  public void close() {
-    JniWrapper.get().closeScanTask(scanTaskId);
+  public void close() throws Exception {
+    scanner.close();
   }
 }

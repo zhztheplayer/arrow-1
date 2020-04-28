@@ -390,6 +390,77 @@ JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeDataset
   ReleaseNativeRef<arrow::dataset::Dataset>(id);
 }
 
+/// \class DisposableScannerAdaptor
+/// \brief An adaptor that iterates over a Scanner instance then returns RecordBatches directly.
+///
+/// This lessens the complexity of the JNI bridge to make sure it to be easier to maintain. On Java-side,
+/// NativeScanner can only produces a single NativeScanTask instance during its whole lifecycle. Each task stands for
+/// a DisposableScannerAdaptor instance through JNI bridge.
+///
+class DisposableScannerAdaptor {
+ public:
+  DisposableScannerAdaptor(JNIEnv* env, std::shared_ptr<arrow::dataset::Scanner> scanner) {
+    this->env_ = env;
+    this->scanner_ = std::move(scanner);
+    JNI_ASSIGN_OR_THROW(task_itr_, scanner_->Scan())
+    if (!NextTask()) {
+      // naturally empty (no task returned by scanner)
+      is_naturally_empty_ = true;
+    }
+  }
+
+  static std::shared_ptr<DisposableScannerAdaptor> Create(JNIEnv* env,
+      std::shared_ptr<arrow::dataset::Scanner> scanner) {
+    return std::make_shared<DisposableScannerAdaptor>(env, scanner);
+  }
+
+  std::shared_ptr<arrow::RecordBatch> Next() {
+    if (is_naturally_empty_) {
+      return nullptr;
+    }
+    do {
+      std::shared_ptr<arrow::RecordBatch> batch = NextBatch();
+      if (batch != nullptr) {
+        return batch;
+      }
+      // batch is null, current task is fully consumed
+      if (!NextTask()) {
+        // no more tasks
+        return nullptr;
+      }
+      // new task appended, read again
+    } while (true);
+  }
+
+  const std::shared_ptr<arrow::dataset::Scanner>& GetScanner() const {
+    return scanner_;
+  }
+
+ protected:
+  JNIEnv *env_;
+  arrow::dataset::ScanTaskIterator task_itr_;
+  std::shared_ptr<arrow::dataset::Scanner> scanner_;
+  std::shared_ptr<arrow::dataset::ScanTask> current_task_ = nullptr;
+  arrow::RecordBatchIterator current_batch_itr_;
+  bool is_naturally_empty_ = false;
+
+  bool NextTask() {
+    JNIEnv *env = env_;
+    JNI_ASSIGN_OR_THROW(current_task_, task_itr_.Next())
+    if (current_task_ == nullptr) {
+      return false;
+    }
+    JNI_ASSIGN_OR_THROW(current_batch_itr_, current_task_->Execute())
+    return true;
+  }
+
+  std::shared_ptr<arrow::RecordBatch> NextBatch() {
+    JNIEnv *env = env_;
+    JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::RecordBatch> batch, current_batch_itr_.Next())
+    return batch;
+  }
+};
+
 /*
  * Class:     org_apache_arrow_dataset_jni_JniWrapper
  * Method:    createScanner
@@ -419,39 +490,10 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScann
     JNI_ASSERT_OK_OR_THROW(scanner_builder->Filter(translateFilter(condition, env)));
   }
   JNI_ASSIGN_OR_THROW(auto scanner, scanner_builder->Finish())
-  jlong id = CreateNativeRef(scanner);
+  std::shared_ptr<DisposableScannerAdaptor> scanner_adaptor = DisposableScannerAdaptor::Create(env, scanner);
+  jlong id = CreateNativeRef(scanner_adaptor);
   releaseFilterInput(filter, exprs_bytes, env);
   return id;
-}
-
-/*
- * Class:     org_apache_arrow_dataset_jni_JniWrapper
- * Method:    getSchemaFromScanner
- * Signature: (J)[B
- */
-JNIEXPORT jbyteArray JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_getSchemaFromScanner
-    (JNIEnv* env, jobject, jlong scanner_id) {
-  std::shared_ptr<arrow::Schema> schema = RetrieveNativeInstance<arrow::dataset::Scanner>(scanner_id)->schema();
-  return ToSchemaByteArray(env, schema);
-}
-
-/*
- * Class:     org_apache_arrow_dataset_jni_JniWrapper
- * Method:    getScanTasksFromScanner
- * Signature: (J)[J
- */
-JNIEXPORT jlongArray JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_getScanTasksFromScanner
-    (JNIEnv* env, jobject, jlong scanner_id) {
-  std::shared_ptr<arrow::dataset::Scanner> scanner = RetrieveNativeInstance<arrow::dataset::Scanner>(scanner_id);
-  JNI_ASSIGN_OR_THROW(arrow::dataset::ScanTaskIterator itr, scanner->Scan())
-  std::vector<std::shared_ptr<arrow::dataset::ScanTask>> vector = collect(env, std::move(itr));
-  jlongArray ret = env->NewLongArray(vector.size());
-  for (unsigned long i = 0; i < vector.size(); i++) {
-    std::shared_ptr<arrow::dataset::ScanTask> scan_task = vector.at(i);
-    jlong id[] = {CreateNativeRef(scan_task)};
-    env->SetLongArrayRegion(ret, i, 1, id);
-  }
-  return ret;
 }
 
 /*
@@ -461,30 +503,19 @@ JNIEXPORT jlongArray JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_getSca
  */
 JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeScanner
     (JNIEnv *, jobject, jlong scanner_id) {
-  ReleaseNativeRef<arrow::dataset::Scanner>(scanner_id);
+  ReleaseNativeRef<DisposableScannerAdaptor>(scanner_id);
 }
 
 /*
  * Class:     org_apache_arrow_dataset_jni_JniWrapper
- * Method:    closeScanTask
- * Signature: (J)V
+ * Method:    getSchemaFromScanner
+ * Signature: (J)[B
  */
-JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeScanTask
-    (JNIEnv *, jobject, jlong id) {
-  ReleaseNativeRef<arrow::dataset::ScanTask>(id);
-}
-
-/*
- * Class:     org_apache_arrow_dataset_jni_JniWrapper
- * Method:    scan
- * Signature: (J)J
- */
-JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_scan
-    (JNIEnv* env, jobject, jlong scan_task_id) {
-  std::shared_ptr<arrow::dataset::ScanTask> scan_task = RetrieveNativeInstance<arrow::dataset::ScanTask>(scan_task_id);
-  JNI_ASSIGN_OR_THROW(arrow::RecordBatchIterator record_batch_iterator, scan_task->Execute())
-  // move and propagate
-  return CreateNativeRef(std::make_shared<arrow::RecordBatchIterator>(std::move(record_batch_iterator)));
+JNIEXPORT jbyteArray JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_getSchemaFromScanner
+    (JNIEnv* env, jobject, jlong scanner_id) {
+  std::shared_ptr<arrow::Schema> schema
+      = RetrieveNativeInstance<DisposableScannerAdaptor>(scanner_id)->GetScanner()->schema();
+  return ToSchemaByteArray(env, schema);
 }
 
 /*
@@ -493,10 +524,11 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_scan
  * Signature: (J)Lorg/apache/arrow/dataset/jni/NativeRecordBatchHandle;
  */
 JNIEXPORT jobject JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_nextRecordBatch
-    (JNIEnv* env, jobject, jlong iterator_id) {
-  std::shared_ptr<arrow::RecordBatchIterator> itr = RetrieveNativeInstance<arrow::RecordBatchIterator>(iterator_id);
+    (JNIEnv* env, jobject, jlong scanner_id) {
+  std::shared_ptr<DisposableScannerAdaptor> scanner_adaptor
+      = RetrieveNativeInstance<DisposableScannerAdaptor>(scanner_id);
 
-  JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::RecordBatch> record_batch, itr->Next())
+  std::shared_ptr<arrow::RecordBatch> record_batch = scanner_adaptor->Next();
   if (record_batch == nullptr) {
     return nullptr; // stream ended
   }
@@ -539,16 +571,6 @@ JNIEXPORT jobject JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_nextRecor
   jobject ret = env->NewObject(record_batch_handle_class, record_batch_handle_constructor,
                                record_batch->num_rows(), field_array, buffer_array);
   return ret;
-}
-
-/*
- * Class:     org_apache_arrow_dataset_jni_JniWrapper
- * Method:    closeIterator
- * Signature: (J)V
- */
-JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeIterator
-    (JNIEnv *, jobject, jlong id) {
-  ReleaseNativeRef<arrow::RecordBatchIterator>(id);
 }
 
 /*

@@ -18,8 +18,8 @@
 package org.apache.arrow.dataset.jni;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.stream.Collectors;
+import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.arrow.dataset.scanner.ScanTask;
 import org.apache.arrow.dataset.scanner.Scanner;
@@ -27,23 +27,32 @@ import org.apache.arrow.util.SchemaUtils;
 import org.apache.arrow.vector.types.pojo.Schema;
 
 /**
- * Native implementation of {@link Scanner}.
+ * Native implementation of {@link Scanner}. Note that it currently emits only a single scan task of type
+ * {@link NativeScanTask}, which is internally a combination of all scan task instances returned by the
+ * native scanner.
  */
 public class NativeScanner implements Scanner {
 
   private final NativeContext context;
   private final long scannerId;
+  private final AtomicBoolean closed = new AtomicBoolean(false);
 
   public NativeScanner(NativeContext context, long scannerId) {
     this.context = context;
     this.scannerId = scannerId;
   }
 
+  NativeContext getContext() {
+    return context;
+  }
+
+  long getId() {
+    return scannerId;
+  }
+
   @Override
   public Iterable<? extends ScanTask> scan() {
-    return Arrays.stream(JniWrapper.get().getScanTasksFromScanner(scannerId))
-        .mapToObj(id -> new NativeScanTask(context, schema(), id))
-        .collect(Collectors.toList());
+    return Collections.singletonList(new NativeScanTask(this));
   }
 
   @Override
@@ -57,6 +66,9 @@ public class NativeScanner implements Scanner {
 
   @Override
   public void close() throws Exception {
+    if (!closed.compareAndSet(false, true)) {
+      return;
+    }
     JniWrapper.get().closeScanner(scannerId);
   }
 }

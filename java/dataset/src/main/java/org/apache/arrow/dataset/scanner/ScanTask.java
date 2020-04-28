@@ -29,14 +29,14 @@ import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 public interface ScanTask {
 
   /**
-   * Creates and returns a {@link Itr} instance.
+   * Creates and returns a {@link BatchIterator} instance.
    */
-  Itr scan();
+  BatchIterator scan();
 
   /**
    * The iterator implementation for {@link org.apache.arrow.vector.ipc.message.ArrowRecordBatch}s.
    */
-  interface Itr extends Iterator<ArrowRecordBatch>, AutoCloseable {
+  interface BatchIterator extends Iterator<ArrowRecordBatch>, AutoCloseable {
 
   }
 }
