@@ -37,7 +37,7 @@ import org.apache.arrow.dataset.scanner.Scanner;
 import org.apache.arrow.dataset.source.Dataset;
 import org.apache.arrow.dataset.source.DatasetFactory;
 import org.apache.arrow.memory.RootAllocator;
-import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.junit.Assert;
 import org.junit.Ignore;
@@ -69,12 +69,12 @@ public class NativeDatasetTest {
     Assert.assertEquals(1, scanTasks.size());
 
     ScanTask scanTask = scanTasks.get(0);
-    List<? extends VectorSchemaRoot> data = collect(scanTask.scan());
+    List<? extends ArrowRecordBatch> data = collect(scanTask.scan());
     Assert.assertNotNull(data);
     // 1000 rows total in file userdata1.parquet
     Assert.assertEquals(10, data.size());
-    VectorSchemaRoot vsr = data.get(0);
-    Assert.assertEquals(100, vsr.getRowCount());
+    ArrowRecordBatch batch = data.get(0);
+    Assert.assertEquals(100, batch.getLength());
   }
 
   @Test
@@ -122,28 +122,22 @@ public class NativeDatasetTest {
     NativeDataset dataset = factory.finish(schema);
     ScanOptions scanOptions = new ScanOptions(new String[]{"id", "title"}, Filter.EMPTY, 100);
     Scanner scanner = dataset.newScan(scanOptions);
+    // check if projector is applied
+    Assert.assertEquals("Schema<id: Int(32, true), title: Utf8>",
+        scanner.schema().toString());
     List<? extends ScanTask> scanTasks = collect(scanner.scan());
     Assert.assertEquals(1, scanTasks.size());
 
     ScanTask scanTask = scanTasks.get(0);
     ScanTask.Itr itr = scanTask.scan();
     int vsrCount = 0;
-    VectorSchemaRoot vsr = null;
     while (itr.hasNext()) {
-      // FIXME VectorSchemaRoot is not actually something ITERABLE. Use a reader convention instead.
       vsrCount++;
-      vsr = itr.next();
-      Assert.assertEquals(100, vsr.getRowCount());
-
-      // check if projector is applied
-      Assert.assertEquals("Schema<id: Int(32, true), title: Utf8>",
-          vsr.getSchema().toString());
+      ArrowRecordBatch batch = itr.next();
+      Assert.assertEquals(100, batch.getLength());
+      batch.close();
     }
     Assert.assertEquals(10, vsrCount);
-
-    if (vsr != null) {
-      vsr.close();
-    }
     allocator.close();
   }
 
@@ -173,28 +167,22 @@ public class NativeDatasetTest {
     Filter filter = new FilterImpl(condition);
     ScanOptions scanOptions = new ScanOptions(new String[]{"id", "title"}, filter, 100);
     Scanner scanner = dataset.newScan(scanOptions);
+    // check if projector is applied
+    Assert.assertEquals("Schema<id: Int(32, true), title: Utf8>",
+        scanner.schema().toString());
     List<? extends ScanTask> scanTasks = collect(scanner.scan());
     Assert.assertEquals(1, scanTasks.size());
 
     ScanTask scanTask = scanTasks.get(0);
     ScanTask.Itr itr = scanTask.scan();
-    VectorSchemaRoot vsr = null;
     int rowCount = 0;
     while (itr.hasNext()) {
-      // FIXME VectorSchemaRoot is not actually something ITERABLE. Use a reader convention instead.
-      vsr = itr.next();
+      ArrowRecordBatch batch = itr.next();
       // only the line with id = 500 selected
-      rowCount += vsr.getRowCount();
-
-      // check if projector is applied
-      Assert.assertEquals("Schema<id: Int(32, true), title: Utf8>",
-          vsr.getSchema().toString());
+      rowCount += batch.getLength();
+      batch.close();
     }
     Assert.assertEquals(1, rowCount);
-
-    if (vsr != null) {
-      vsr.close();
-    }
     allocator.close();
   }
 

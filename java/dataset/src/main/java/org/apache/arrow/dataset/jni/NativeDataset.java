@@ -41,10 +41,6 @@ public class NativeDataset implements Dataset, AutoCloseable {
     return new NativeScanner(context, scannerId);
   }
 
-  public long getDatasetId() {
-    return datasetId;
-  }
-
   @Override
   public void close() throws Exception {
     JniWrapper.get().closeDataset(datasetId);

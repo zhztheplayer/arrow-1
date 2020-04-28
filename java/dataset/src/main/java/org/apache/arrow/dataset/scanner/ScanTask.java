@@ -19,7 +19,7 @@ package org.apache.arrow.dataset.scanner;
 
 import java.util.Iterator;
 
-import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 
 /**
  * Read record batches from a range of a single data fragment. A
@@ -34,9 +34,9 @@ public interface ScanTask {
   Itr scan();
 
   /**
-   * The iterator implementation for {@link VectorSchemaRoot}s.
+   * The iterator implementation for {@link org.apache.arrow.vector.ipc.message.ArrowRecordBatch}s.
    */
-  interface Itr extends Iterator<VectorSchemaRoot>, AutoCloseable {
-    // FIXME VectorSchemaRoot is not actually something ITERABLE. Using a reader convention instead.
+  interface Itr extends Iterator<ArrowRecordBatch>, AutoCloseable {
+
   }
 }
