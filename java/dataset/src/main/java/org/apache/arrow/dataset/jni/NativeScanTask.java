@@ -17,7 +17,6 @@
 
 package org.apache.arrow.dataset.jni;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
@@ -27,8 +26,6 @@ import org.apache.arrow.memory.BaseAllocator;
 import org.apache.arrow.memory.BufferLedger;
 import org.apache.arrow.memory.NativeUnderlingMemory;
 import org.apache.arrow.memory.Ownerships;
-import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.ipc.ArrowReader;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -54,35 +51,45 @@ public class NativeScanTask implements ScanTask, AutoCloseable {
 
   @Override
   public Itr scan() {
-
     return new Itr() {
-
-      private final Reader in = new Reader(JniWrapper.get().scan(scanTaskId));
-      private VectorSchemaRoot peek = null;
+      private final long recordBatchIteratorId = JniWrapper.get().scan(scanTaskId);
+      private ArrowRecordBatch peek = null;
 
       @Override
       public void close() throws Exception {
-        in.close();
+        JniWrapper.get().closeIterator(recordBatchIteratorId);
       }
 
       @Override
       public boolean hasNext() {
-        try {
-          if (peek != null) {
-            return true;
-          }
-          if (!in.loadNextBatch()) {
-            return false;
-          }
-          peek = in.getVectorSchemaRoot();
+        if (peek != null) {
           return true;
-        } catch (IOException e) {
-          throw new RuntimeException(e);
+        }
+        NativeRecordBatchHandle handle = JniWrapper.get().nextRecordBatch(recordBatchIteratorId);
+        if (handle == null) {
+          return false;
+        }
+        final ArrayList<ArrowBuf> buffers = new ArrayList<>();
+        for (NativeRecordBatchHandle.Buffer buffer : handle.getBuffers()) {
+          final BaseAllocator allocator = context.getAllocator();
+          final NativeUnderlingMemory am = new NativeUnderlingMemory(allocator,
+              (int) buffer.size, buffer.nativeInstanceId, buffer.memoryAddress);
+          final BufferLedger ledger = Ownerships.get().takeOwnership(allocator, am);
+          ArrowBuf buf = new ArrowBuf(ledger, null, (int) buffer.size, buffer.memoryAddress, false);
+          buffers.add(buf);
+        }
+        try {
+          peek = new ArrowRecordBatch((int) handle.getNumRows(), handle.getFields().stream()
+              .map(field -> new ArrowFieldNode((int) field.length, (int) field.nullCount))
+              .collect(Collectors.toList()), buffers);
+          return true;
+        } finally {
+          buffers.forEach(buffer -> buffer.getReferenceManager().release());
         }
       }
 
       @Override
-      public VectorSchemaRoot next() {
+      public ArrowRecordBatch next() {
         if (!hasNext()) {
           throw new NoSuchElementException();
         }
@@ -98,60 +105,5 @@ public class NativeScanTask implements ScanTask, AutoCloseable {
   @Override
   public void close() {
     JniWrapper.get().closeScanTask(scanTaskId);
-  }
-
-  private class Reader extends ArrowReader {
-
-    private final long recordBatchIteratorId;
-
-    Reader(long recordBatchIteratorId) {
-      super(context.getAllocator());
-      this.recordBatchIteratorId = recordBatchIteratorId;
-    }
-
-    @Override
-    public boolean loadNextBatch() throws IOException {
-      // fixme it seems that the initialization is not thread-safe. Does caller already make it safe?
-      ensureInitialized();
-      NativeRecordBatchHandle handle = JniWrapper.get().nextRecordBatch(recordBatchIteratorId);
-      if (handle == null) {
-        return false;
-      }
-      final ArrayList<ArrowBuf> buffers = new ArrayList<>();
-      for (NativeRecordBatchHandle.Buffer buffer : handle.getBuffers()) {
-        final BaseAllocator allocator = context.getAllocator();
-        final NativeUnderlingMemory am = new NativeUnderlingMemory(allocator,
-            (int) buffer.size, buffer.nativeInstanceId, buffer.memoryAddress);
-        final BufferLedger ledger = Ownerships.get().takeOwnership(allocator, am);
-        ArrowBuf buf = new ArrowBuf(ledger, null, (int) buffer.size, buffer.memoryAddress, false);
-        buffers.add(buf);
-      }
-      try {
-        loadRecordBatch(
-            new ArrowRecordBatch((int) handle.getNumRows(), handle.getFields().stream()
-                .map(field -> new ArrowFieldNode((int) field.length, (int) field.nullCount))
-                .collect(Collectors.toList()), buffers));
-      } finally {
-        buffers.forEach(b -> b.getReferenceManager().release());
-      }
-      return true;
-    }
-
-    @Override
-    public long bytesRead() {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected void closeReadSource() throws IOException {
-      JniWrapper.get().closeIterator(recordBatchIteratorId);
-    }
-
-    @Override
-    protected Schema readSchema() throws IOException {
-      return schema;
-    }
-
-
   }
 }
