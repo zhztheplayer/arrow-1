@@ -46,27 +46,6 @@ static jmethodID record_batch_handle_buffer_constructor;
 
 static jint JNI_VERSION = JNI_VERSION_1_6;
 
-#define JNI_ASSIGN_OR_THROW_NAME(x, y) ARROW_CONCAT(x, y)
-
-#define JNI_ASSIGN_OR_THROW_IMPL(t, lhs, rexpr)                             \
-  auto t = (rexpr);                                                         \
-  if (!t.status().ok()) {                                                   \
-    env->ThrowNew(runtime_exception_class, t.status().message().c_str());   \
-  }                                                                         \
-  lhs = std::move(t).ValueOrDie();
-
-#define JNI_ASSIGN_OR_THROW(lhs, rexpr)                                     \
-  JNI_ASSIGN_OR_THROW_IMPL(JNI_ASSIGN_OR_THROW_NAME(_tmp_var, __COUNTER__), lhs, rexpr)
-
-#define JNI_ASSERT_OK_OR_THROW(expr)                                          \
-  do {                                                                        \
-    auto _res = (expr);                                                       \
-    arrow::Status _st = ::arrow::internal::GenericToStatus(_res);             \
-    if (!_st.ok()) {                                                          \
-       env->ThrowNew(runtime_exception_class, _st.message().c_str());  \
-    }                                                                         \
-  } while (false);
-
 jclass CreateGlobalClassReference(JNIEnv* env, const char* class_name) {
   jclass local_class = env->FindClass(class_name);
   jclass global_class = (jclass)env->NewGlobalRef(local_class);
@@ -117,7 +96,6 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
   return JNI_VERSION;
 }
 
-
 void JNI_OnUnload(JavaVM* vm, void* reserved) {
   JNIEnv* env;
   vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION);
@@ -127,6 +105,20 @@ void JNI_OnUnload(JavaVM* vm, void* reserved) {
   env->DeleteGlobalRef(record_batch_handle_class);
   env->DeleteGlobalRef(record_batch_handle_field_class);
   env->DeleteGlobalRef(record_batch_handle_buffer_class);
+}
+
+template<typename T>
+T JniGetOrThrow(JNIEnv* env, arrow::Result<T> result) {
+  if (!result.status().ok()) {
+    env->ThrowNew(runtime_exception_class, result.status().message().c_str());
+  }
+  return std::move(result).ValueOrDie();
+}
+
+void JniAssertOkOrThrow(JNIEnv* env, arrow::Status status) {
+  if (!status.ok()) {
+    env->ThrowNew(runtime_exception_class, status.message().c_str());
+  }
 }
 
 std::shared_ptr<arrow::Schema> SchemaFromColumnNames(
@@ -156,7 +148,7 @@ std::shared_ptr<arrow::fs::FileSystem> GetFileSystem(JNIEnv *env, jint id, std::
       *out_path = path;
       return std::make_shared<arrow::fs::LocalFileSystem>();
     case 1: {
-      JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::fs::FileSystem> ret, arrow::fs::FileSystemFromUri(path, out_path))
+      std::shared_ptr<arrow::fs::FileSystem> ret = JniGetOrThrow(env, arrow::fs::FileSystemFromUri(path, out_path));
       return ret;
     }
     default:std::string error_message = "illegal filesystem id: " + std::to_string(id);
@@ -185,19 +177,6 @@ std::vector<std::string> ToStringVector(JNIEnv* env, jobjectArray& str_array) {
 }
 
 template <typename T>
-std::vector<T> collect(JNIEnv* env, arrow::Iterator<T> itr) {
-  std::vector<T> vector;
-  while(true) {
-    JNI_ASSIGN_OR_THROW(T t, itr.Next())
-    if (!t) {
-      break;
-    }
-    vector.push_back(t);
-  }
-  return vector;
-}
-
-template <typename T>
 jlong CreateNativeRef(std::shared_ptr<T> t) {
   std::shared_ptr<T> *retained_ptr = new std::shared_ptr<T>(t);
   return reinterpret_cast<jlong>(retained_ptr);
@@ -215,11 +194,9 @@ void ReleaseNativeRef(jlong ref) {
   delete retrieved_ptr;
 }
 
-// FIXME: COPIED FROM intel/master on which this branch is not rebased yet
-// FIXME: https://github.com/Intel-bigdata/arrow/blob/02502a4eb59834c2471dd629e77dbeed19559f68/cpp/src/jni/jni_common.h#L239-L254
 jbyteArray ToSchemaByteArray(JNIEnv* env, std::shared_ptr<arrow::Schema> schema) {
-  JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::Buffer> buffer,
-      arrow::ipc::SerializeSchema(*schema.get(), nullptr, arrow::default_memory_pool()))
+  std::shared_ptr<arrow::Buffer>
+      buffer = JniGetOrThrow(env, arrow::ipc::SerializeSchema(*schema, nullptr, arrow::default_memory_pool()));
 
   jbyteArray out = env->NewByteArray(buffer->size());
   auto src = reinterpret_cast<const jbyte*>(buffer->data());
@@ -227,16 +204,14 @@ jbyteArray ToSchemaByteArray(JNIEnv* env, std::shared_ptr<arrow::Schema> schema)
   return out;
 }
 
-// FIXME: COPIED FROM intel/master on which this branch is not rebased yet
-// FIXME: https://github.com/Intel-bigdata/arrow/blob/02502a4eb59834c2471dd629e77dbeed19559f68/cpp/src/jni/jni_common.h#L256-L272
 std::shared_ptr<arrow::Schema> FromSchemaByteArray(JNIEnv* env, jbyteArray schemaBytes) {
   arrow::ipc::DictionaryMemo in_memo;
   int schemaBytes_len = env->GetArrayLength(schemaBytes);
-  jbyte* schemaBytes_data = env->GetByteArrayElements(schemaBytes, 0);
+  jbyte* schemaBytes_data = env->GetByteArrayElements(schemaBytes, nullptr);
   auto serialized_schema =
-      std::make_shared<arrow::Buffer>((uint8_t*)schemaBytes_data, schemaBytes_len);
+      std::make_shared<arrow::Buffer>(reinterpret_cast<uint8_t*>(schemaBytes_data), schemaBytes_len);
   arrow::io::BufferReader buf_reader(serialized_schema);
-  JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::Schema> schema, arrow::ipc::ReadSchema(&buf_reader, &in_memo))
+  std::shared_ptr<arrow::Schema> schema = JniGetOrThrow(env, arrow::ipc::ReadSchema(&buf_reader, &in_memo));
   env->ReleaseByteArrayElements(schemaBytes, schemaBytes_data, JNI_ABORT);
   return schema;
 }
@@ -361,7 +336,7 @@ JNIEXPORT jbyteArray JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_inspec
     (JNIEnv* env, jobject, jlong dataset_factor_id) {
   std::shared_ptr<arrow::dataset::DatasetFactory> d
       = RetrieveNativeInstance<arrow::dataset::DatasetFactory>(dataset_factor_id);
-  JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::Schema> schema, d->Inspect())
+  std::shared_ptr<arrow::Schema> schema = JniGetOrThrow(env, d->Inspect());
   return ToSchemaByteArray(env, schema);
 }
 
@@ -376,7 +351,7 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createDatas
       = RetrieveNativeInstance<arrow::dataset::DatasetFactory>(dataset_factory_id);
   std::shared_ptr<arrow::Schema> schema;
   schema = FromSchemaByteArray(env, schema_bytes);
-  JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::dataset::Dataset> dataset, d->Finish(schema))
+  std::shared_ptr<arrow::dataset::Dataset> dataset = JniGetOrThrow(env, d->Finish(schema));
   return CreateNativeRef(dataset);
 }
 
@@ -402,7 +377,7 @@ class DisposableScannerAdaptor {
   DisposableScannerAdaptor(JNIEnv* env, std::shared_ptr<arrow::dataset::Scanner> scanner) {
     this->env_ = env;
     this->scanner_ = std::move(scanner);
-    JNI_ASSIGN_OR_THROW(task_itr_, scanner_->Scan())
+    task_itr_ = JniGetOrThrow(env, scanner_->Scan());
     if (!NextTask()) {
       // naturally empty (no task returned by scanner)
       is_naturally_empty_ = true;
@@ -446,17 +421,17 @@ class DisposableScannerAdaptor {
 
   bool NextTask() {
     JNIEnv *env = env_;
-    JNI_ASSIGN_OR_THROW(current_task_, task_itr_.Next())
+    current_task_ = JniGetOrThrow(env, task_itr_.Next());
     if (current_task_ == nullptr) {
       return false;
     }
-    JNI_ASSIGN_OR_THROW(current_batch_itr_, current_task_->Execute())
+    current_batch_itr_= JniGetOrThrow(env, current_task_->Execute());
     return true;
   }
 
   std::shared_ptr<arrow::RecordBatch> NextBatch() {
     JNIEnv *env = env_;
-    JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::RecordBatch> batch, current_batch_itr_.Next())
+    std::shared_ptr<arrow::RecordBatch> batch = JniGetOrThrow(env, current_batch_itr_.Next());
     return batch;
   }
 };
@@ -471,15 +446,15 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScann
         jbyteArray filter, jlong batch_size) {
   std::shared_ptr<arrow::dataset::ScanContext> context = std::make_shared<arrow::dataset::ScanContext>();
   std::shared_ptr<arrow::dataset::Dataset> dataset = RetrieveNativeInstance<arrow::dataset::Dataset>(dataset_id);
-  JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::dataset::ScannerBuilder> scanner_builder, dataset->NewScan())
+  std::shared_ptr<arrow::dataset::ScannerBuilder> scanner_builder = JniGetOrThrow(env, dataset->NewScan());
 
   std::vector<std::string> column_vector = ToStringVector(env, columns);
-  JNI_ASSERT_OK_OR_THROW(scanner_builder->Project(column_vector));
-  JNI_ASSERT_OK_OR_THROW(scanner_builder->BatchSize(batch_size));
+  JniAssertOkOrThrow(env, scanner_builder->Project(column_vector));
+  JniAssertOkOrThrow(env, scanner_builder->BatchSize(batch_size));
 
   // initialize filters
   jsize exprs_len = env->GetArrayLength(filter);
-  jbyte* exprs_bytes = env->GetByteArrayElements(filter, 0);
+  jbyte* exprs_bytes = env->GetByteArrayElements(filter, nullptr);
   types::Condition condition;
   if (!ParseProtobuf(reinterpret_cast<uint8_t*>(exprs_bytes), exprs_len, &condition)) {
     releaseFilterInput(filter, exprs_bytes, env);
@@ -487,9 +462,9 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScann
     env->ThrowNew(illegal_argument_exception_class, error_message.c_str());
   }
   if (condition.has_root()) {
-    JNI_ASSERT_OK_OR_THROW(scanner_builder->Filter(TranslateFilter(condition, env)));
+    JniAssertOkOrThrow(env, scanner_builder->Filter(TranslateFilter(condition, env)));
   }
-  JNI_ASSIGN_OR_THROW(auto scanner, scanner_builder->Finish())
+  auto scanner = JniGetOrThrow(env, scanner_builder->Finish());
   std::shared_ptr<DisposableScannerAdaptor> scanner_adaptor = DisposableScannerAdaptor::Create(env, scanner);
   jlong id = CreateNativeRef(scanner_adaptor);
   releaseFilterInput(filter, exprs_bytes, env);
@@ -595,7 +570,7 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_file_JniWrapper_makeSingle
   std::string out_path;
   std::shared_ptr<arrow::fs::FileSystem> fs
       = GetFileSystem(env, file_system_id, JStringToCString(env, path), &out_path);
-  JNI_ASSIGN_OR_THROW(std::shared_ptr<arrow::dataset::DatasetFactory> d,
-                      arrow::dataset::SingleFileDatasetFactory::Make(out_path, fs, file_format))
+  std::shared_ptr<arrow::dataset::DatasetFactory> d = JniGetOrThrow(env,
+                      arrow::dataset::SingleFileDatasetFactory::Make(out_path, fs, file_format));
   return CreateNativeRef(d);
 }
