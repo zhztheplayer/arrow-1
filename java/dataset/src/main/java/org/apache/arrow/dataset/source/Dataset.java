@@ -25,5 +25,11 @@ import org.apache.arrow.dataset.scanner.Scanner;
  */
 public interface Dataset {
 
+  /**
+   * Create a new Scanner using the provided scan options.
+   *
+   * @param options options used during creating Scanner
+   * @return the Scanner instance
+   */
   Scanner newScan(ScanOptions options);
 }

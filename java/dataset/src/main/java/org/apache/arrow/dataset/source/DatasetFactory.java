@@ -26,9 +26,26 @@ import org.apache.arrow.vector.types.pojo.Schema;
  */
 public interface DatasetFactory {
 
+  /**
+   * Get unified schema for the resulting Dataset.
+   *
+   * @return the schema object inspected
+   */
   Schema inspect();
 
+  /**
+   * Create a Dataset with auto-inferred schema. Which means, the schema of the resulting Dataset will be
+   * the same with calling {@link #inspect()} manually.
+   *
+   * @return the Dataset instance
+   */
   Dataset finish();
 
+  /**
+   * Create a Dataset with predefined schema. Schema inference will not be performed.
+   *
+   * @param schema a predefined schema
+   * @return the Dataset instance
+   */
   Dataset finish(Schema schema);
 }
