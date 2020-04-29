@@ -22,14 +22,17 @@ option java_package = "org.apache.arrow.dataset";
 option java_outer_classname = "DatasetTypes";
 option optimize_for = SPEED;
 
+message Condition {
+  optional TreeNode root = 1;
+}
+
 message FieldNode {
-  // name of the field
   optional string name = 1;
 }
 
 message FunctionNode {
   optional string functionName = 1;
-  repeated TreeNode inArgs = 2;
+  repeated TreeNode args = 2;
 }
 
 message ComparisonNode {
@@ -121,29 +124,20 @@ message TreeNode {
   optional FieldNode fieldNode = 1;
   optional FunctionNode fnNode = 2;
   optional ComparisonNode cpNode = 3;
+  optional InNode inNode = 4;
+  optional IsValidNode isValidNode = 5;
 
-  // control expressions
-  optional AndNode andNode = 7;
-  optional OrNode orNode = 8;
+  optional AndNode andNode = 6;
+  optional OrNode orNode = 7;
+  optional NotNode notNode = 8;
 
-  optional NotNode notNode = 9;
-  optional IsValidNode isValidNode = 10;
-
-  // literals
-  optional NullNode nullNode = 11;
-  optional IntNode intNode = 12;
-  optional FloatNode floatNode = 13;
-  optional LongNode longNode = 14;
-  optional BooleanNode booleanNode = 15;
-  optional DoubleNode doubleNode = 16;
-  optional StringNode stringNode = 17;
-  optional BinaryNode binaryNode = 18;
-  optional DecimalNode decimalNode = 19;
-
-  // in expr
-  optional InNode inNode = 21;
-}
-
-message Condition {
-  optional TreeNode root = 1;
+  optional NullNode nullNode = 9;
+  optional IntNode intNode = 10;
+  optional FloatNode floatNode = 11;
+  optional LongNode longNode = 12;
+  optional BooleanNode booleanNode = 13;
+  optional DoubleNode doubleNode = 14;
+  optional StringNode stringNode = 15;
+  optional BinaryNode binaryNode = 16;
+  optional DecimalNode decimalNode = 17;
 }
