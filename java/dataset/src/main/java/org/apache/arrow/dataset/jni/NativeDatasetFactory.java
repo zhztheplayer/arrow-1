@@ -28,17 +28,28 @@ import org.apache.arrow.vector.types.pojo.Schema;
  * Native implementation of {@link DatasetFactory}.
  */
 public class NativeDatasetFactory implements DatasetFactory, AutoCloseable {
-  private final long dataSourceDiscoveryId;
+  private final long datasetFactoryId;
   private final BufferAllocator allocator;
 
-  public NativeDatasetFactory(BufferAllocator allocator, long dataSourceDiscoveryId) {
+  /**
+   * Constructor.
+   *
+   * @param allocator an context allocator associated with this factory. Any buffer that will be created natively will
+   *                  be then bound to this allocator.
+   * @param datasetFactoryId an ID, at the same time the native pointer of the underlying native instance of this
+   *                         factory. Make sure in c++ side  the pointer is pointing to the shared pointer wrapping
+   *                         the actual instance so we could successfully decrease the reference count once
+   *                         {@link #close} is called.
+   * @see #close()
+   */
+  public NativeDatasetFactory(BufferAllocator allocator, long datasetFactoryId) {
     this.allocator = allocator;
-    this.dataSourceDiscoveryId = dataSourceDiscoveryId;
+    this.datasetFactoryId = datasetFactoryId;
   }
 
   @Override
   public Schema inspect() {
-    byte[] buffer = JniWrapper.get().inspectSchema(dataSourceDiscoveryId);
+    byte[] buffer = JniWrapper.get().inspectSchema(datasetFactoryId);
     try {
       return SchemaUtils.get().deserialize(buffer, allocator);
     } catch (IOException e) {
@@ -56,14 +67,17 @@ public class NativeDatasetFactory implements DatasetFactory, AutoCloseable {
     try {
       byte[] serialized = SchemaUtils.get().serialize(schema);
       return new NativeDataset(new NativeContext(allocator),
-          JniWrapper.get().createDataset(dataSourceDiscoveryId, serialized));
+          JniWrapper.get().createDataset(datasetFactoryId, serialized));
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
 
+  /**
+   * Close this factory by release the pointer of the native instance.
+   */
   @Override
-  public void close() throws Exception {
-    JniWrapper.get().closeDatasetFactory(dataSourceDiscoveryId);
+  public void close() {
+    JniWrapper.get().closeDatasetFactory(datasetFactoryId);
   }
 }
