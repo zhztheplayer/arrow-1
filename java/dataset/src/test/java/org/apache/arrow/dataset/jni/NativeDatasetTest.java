@@ -30,7 +30,6 @@ import org.apache.arrow.dataset.file.FileFormat;
 import org.apache.arrow.dataset.file.FileSystem;
 import org.apache.arrow.dataset.file.SingleFileDatasetFactory;
 import org.apache.arrow.dataset.filter.Filter;
-import org.apache.arrow.dataset.filter.FilterImpl;
 import org.apache.arrow.dataset.scanner.ScanOptions;
 import org.apache.arrow.dataset.scanner.ScanTask;
 import org.apache.arrow.dataset.scanner.Scanner;
@@ -164,7 +163,7 @@ public class NativeDatasetTest {
                 .build())
             .build())
         .build();
-    Filter filter = new FilterImpl(condition);
+    Filter filter = new Filter(condition);
     ScanOptions scanOptions = new ScanOptions(new String[]{"id", "title"}, filter, 100);
     Scanner scanner = dataset.newScan(scanOptions);
     // check if projector is applied

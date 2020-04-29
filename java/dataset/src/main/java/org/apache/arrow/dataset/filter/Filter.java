@@ -17,21 +17,32 @@
 
 package org.apache.arrow.dataset.filter;
 
-// todo filter tree implementation
-// todo see also https://issues.apache.org/jira/browse/ARROW-6953
+import org.apache.arrow.dataset.DatasetTypes;
 
 /**
  * Datasets filter.
+ *
+ * EXPERIMENTAL: Datasets filter definition should ideally keep up with C++ implementation. In next several release
+ * versions The API may vary a lot without respect to backward compatibility.
  */
-public interface Filter {
+public class Filter {
+  public static final Filter EMPTY = new Filter(DatasetTypes.Condition.newBuilder()
+      .setRoot(
+          DatasetTypes.TreeNode.newBuilder()
+              .setBooleanNode(
+                  DatasetTypes.BooleanNode.newBuilder()
+                      .setValue(true)
+                      .build())
+              .build())
+      .build());
 
-  Filter EMPTY = new Filter() {
-    @Override
-    public byte[] toByteArray() {
-      return new byte[0];
-    }
-  };
+  private final DatasetTypes.Condition condition;
 
-  byte[] toByteArray();
+  public Filter(DatasetTypes.Condition condition) {
+    this.condition = condition;
+  }
 
+  public byte[] toByteArray() {
+    return condition.toByteArray();
+  }
 }
