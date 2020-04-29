@@ -337,7 +337,7 @@ std::shared_ptr<arrow::dataset::Expression> TranslateNode(types::TreeNode node, 
   return nullptr; // unreachable
 }
 
-std::shared_ptr<arrow::dataset::Expression> translateFilter(types::Condition condition, JNIEnv* env) {
+std::shared_ptr<arrow::dataset::Expression> TranslateFilter(types::Condition condition, JNIEnv* env) {
   const types::TreeNode& tree_node = condition.root();
   return TranslateNode(tree_node, env);
 }
@@ -487,7 +487,7 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScann
     env->ThrowNew(illegal_argument_exception_class, error_message.c_str());
   }
   if (condition.has_root()) {
-    JNI_ASSERT_OK_OR_THROW(scanner_builder->Filter(translateFilter(condition, env)));
+    JNI_ASSERT_OK_OR_THROW(scanner_builder->Filter(TranslateFilter(condition, env)));
   }
   JNI_ASSIGN_OR_THROW(auto scanner, scanner_builder->Finish())
   std::shared_ptr<DisposableScannerAdaptor> scanner_adaptor = DisposableScannerAdaptor::Create(env, scanner);
