@@ -23,8 +23,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.arrow.dataset.scanner.ScanTask;
 import org.apache.arrow.dataset.scanner.Scanner;
-import org.apache.arrow.util.SchemaUtils;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.arrow.vector.util.SchemaUtility;
 
 /**
  * Native implementation of {@link Scanner}. Note that it currently emits only a single scan task of type
@@ -58,7 +58,7 @@ public class NativeScanner implements Scanner {
   @Override
   public Schema schema() {
     try {
-      return SchemaUtils.get().deserialize(JniWrapper.get().getSchemaFromScanner(scannerId), context.getAllocator());
+      return SchemaUtility.deserialize(JniWrapper.get().getSchemaFromScanner(scannerId), context.getAllocator());
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
