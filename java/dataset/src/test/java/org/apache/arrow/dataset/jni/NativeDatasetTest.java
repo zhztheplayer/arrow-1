@@ -17,6 +17,9 @@
 
 package org.apache.arrow.dataset.jni;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+
 import java.io.File;
 import java.util.Iterator;
 import java.util.List;
@@ -38,7 +41,6 @@ import org.apache.arrow.dataset.source.DatasetFactory;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -57,23 +59,23 @@ public class NativeDatasetTest {
   private void testDatasetFactoryEndToEnd(DatasetFactory factory) {
     Schema schema = factory.inspect();
 
-    Assert.assertEquals(sampleParquetSchema(),
+    assertEquals(sampleParquetSchema(),
         schema.toString());
 
     Dataset dataset = factory.finish();
-    Assert.assertNotNull(dataset);
+    assertNotNull(dataset);
     Scanner scanner = dataset.newScan(new ScanOptions(new String[0], Filter.EMPTY, 100));
 
     List<? extends ScanTask> scanTasks = collect(scanner.scan());
-    Assert.assertEquals(1, scanTasks.size());
+    assertEquals(1, scanTasks.size());
 
     ScanTask scanTask = scanTasks.get(0);
     List<? extends ArrowRecordBatch> data = collect(scanTask.scan());
-    Assert.assertNotNull(data);
+    assertNotNull(data);
     // 1000 rows total in file userdata1.parquet
-    Assert.assertEquals(10, data.size());
+    assertEquals(10, data.size());
     ArrowRecordBatch batch = data.get(0);
-    Assert.assertEquals(100, batch.getLength());
+    assertEquals(100, batch.getLength());
   }
 
   @Test
@@ -122,10 +124,10 @@ public class NativeDatasetTest {
     ScanOptions scanOptions = new ScanOptions(new String[]{"id", "title"}, Filter.EMPTY, 100);
     Scanner scanner = dataset.newScan(scanOptions);
     // check if projector is applied
-    Assert.assertEquals("Schema<id: Int(32, true), title: Utf8>",
+    assertEquals("Schema<id: Int(32, true), title: Utf8>",
         scanner.schema().toString());
     List<? extends ScanTask> scanTasks = collect(scanner.scan());
-    Assert.assertEquals(1, scanTasks.size());
+    assertEquals(1, scanTasks.size());
 
     ScanTask scanTask = scanTasks.get(0);
     ScanTask.BatchIterator itr = scanTask.scan();
@@ -133,10 +135,10 @@ public class NativeDatasetTest {
     while (itr.hasNext()) {
       vsrCount++;
       ArrowRecordBatch batch = itr.next();
-      Assert.assertEquals(100, batch.getLength());
+      assertEquals(100, batch.getLength());
       batch.close();
     }
-    Assert.assertEquals(10, vsrCount);
+    assertEquals(10, vsrCount);
     allocator.close();
   }
 
@@ -167,10 +169,10 @@ public class NativeDatasetTest {
     ScanOptions scanOptions = new ScanOptions(new String[]{"id", "title"}, filter, 100);
     Scanner scanner = dataset.newScan(scanOptions);
     // check if projector is applied
-    Assert.assertEquals("Schema<id: Int(32, true), title: Utf8>",
+    assertEquals("Schema<id: Int(32, true), title: Utf8>",
         scanner.schema().toString());
     List<? extends ScanTask> scanTasks = collect(scanner.scan());
-    Assert.assertEquals(1, scanTasks.size());
+    assertEquals(1, scanTasks.size());
 
     ScanTask scanTask = scanTasks.get(0);
     ScanTask.BatchIterator itr = scanTask.scan();
@@ -181,7 +183,7 @@ public class NativeDatasetTest {
       rowCount += batch.getLength();
       batch.close();
     }
-    Assert.assertEquals(1, rowCount);
+    assertEquals(1, rowCount);
     allocator.close();
   }
 
