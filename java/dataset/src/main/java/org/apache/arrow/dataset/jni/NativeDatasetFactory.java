@@ -21,8 +21,8 @@ import java.io.IOException;
 
 import org.apache.arrow.dataset.source.DatasetFactory;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.util.SchemaUtils;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.arrow.vector.util.SchemaUtility;
 
 /**
  * Native implementation of {@link DatasetFactory}.
@@ -51,7 +51,7 @@ public class NativeDatasetFactory implements DatasetFactory, AutoCloseable {
   public Schema inspect() {
     byte[] buffer = JniWrapper.get().inspectSchema(datasetFactoryId);
     try {
-      return SchemaUtils.get().deserialize(buffer, allocator);
+      return SchemaUtility.deserialize(buffer, allocator);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -65,7 +65,7 @@ public class NativeDatasetFactory implements DatasetFactory, AutoCloseable {
   @Override
   public NativeDataset finish(Schema schema) {
     try {
-      byte[] serialized = SchemaUtils.get().serialize(schema);
+      byte[] serialized = SchemaUtility.serialize(schema);
       return new NativeDataset(new NativeContext(allocator),
           JniWrapper.get().createDataset(datasetFactoryId, serialized));
     } catch (IOException e) {
