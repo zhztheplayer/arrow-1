@@ -18,6 +18,7 @@
 package org.apache.arrow.util;
 
 import static java.util.Arrays.asList;
+import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 
@@ -27,7 +28,6 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.arrow.vector.util.SchemaUtility;
-import org.junit.Assert;
 import org.junit.Test;
 
 public class TestSchemaUtil {
@@ -46,6 +46,6 @@ public class TestSchemaUtil {
 
     byte[] serialized = SchemaUtility.serialize(schema);
     Schema deserialized = SchemaUtility.deserialize(serialized, new RootAllocator(Long.MAX_VALUE));
-    Assert.assertEquals(schema, deserialized);
+    assertEquals(schema, deserialized);
   }
 }

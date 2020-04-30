@@ -17,7 +17,8 @@
 
 package org.apache.arrow.memory;
 
-import org.junit.Assert;
+import static org.junit.Assert.assertEquals;
+
 import org.junit.Test;
 
 import io.netty.buffer.ArrowBuf;
@@ -30,25 +31,25 @@ public class OwnershipsTest {
 
     ChildAllocator allocator1 = (ChildAllocator) root.newChildAllocator("allocator1", 0, Long.MAX_VALUE);
     ChildAllocator allocator2 = (ChildAllocator) root.newChildAllocator("allocator2", 0, Long.MAX_VALUE);
-    Assert.assertEquals(0, allocator1.getAllocatedMemory());
-    Assert.assertEquals(0, allocator2.getAllocatedMemory());
+    assertEquals(0, allocator1.getAllocatedMemory());
+    assertEquals(0, allocator2.getAllocatedMemory());
 
     int size = 512;
 
     ArrowBuf buffer = allocator1.buffer(size);
     AllocationManager am = ((BufferLedger) buffer.getReferenceManager()).getAllocationManager();
     BufferLedger owningLedger = am.getOwningLedger();
-    Assert.assertEquals(size, owningLedger.getAccountedSize());
-    Assert.assertEquals(size, owningLedger.getSize());
-    Assert.assertEquals(size, allocator1.getAllocatedMemory());
+    assertEquals(size, owningLedger.getAccountedSize());
+    assertEquals(size, owningLedger.getSize());
+    assertEquals(size, allocator1.getAllocatedMemory());
 
     BufferLedger transferredLedger = Ownerships.get().takeOwnership(allocator2, am);
-    Assert.assertEquals(0, owningLedger.getAccountedSize());
-    Assert.assertEquals(size, owningLedger.getSize());
-    Assert.assertEquals(size, transferredLedger.getAccountedSize());
-    Assert.assertEquals(size, transferredLedger.getSize());
-    Assert.assertEquals(0, allocator1.getAllocatedMemory());
-    Assert.assertEquals(size, allocator2.getAllocatedMemory());
+    assertEquals(0, owningLedger.getAccountedSize());
+    assertEquals(size, owningLedger.getSize());
+    assertEquals(size, transferredLedger.getAccountedSize());
+    assertEquals(size, transferredLedger.getSize());
+    assertEquals(0, allocator1.getAllocatedMemory());
+    assertEquals(size, allocator2.getAllocatedMemory());
 
   }
 }
