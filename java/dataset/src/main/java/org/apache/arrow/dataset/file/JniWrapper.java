@@ -34,6 +34,16 @@ public class JniWrapper {
     JniLoader.get().ensureLoaded();
   }
 
+  /**
+   * Create SingleFileDatasetFactory and return its native pointer. The pointer is pointing to a
+   * intermediate shared_ptr of the factory instance.
+   * @param path file path to read
+   * @param fileFormat file format ID
+   * @param fileSystem file system ID
+   * @return the native pointer of the arrow::dataset::SingleFileDatasetFactory instance.
+   * @see FileFormat
+   * @see FileSystem
+   */
   public native long makeSingleFileDatasetFactory(String path, int fileFormat, int fileSystem);
 
 }
