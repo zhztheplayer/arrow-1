@@ -208,7 +208,7 @@ Result<std::shared_ptr<SingleFileDataset>> SingleFileDataset::Make(std::shared_p
                                                                    std::string path,
                                                                    std::shared_ptr<fs::FileSystem> fs,
                                                                    std::shared_ptr<FileFormat> format) {
-  std::shared_ptr<FileSource> file = std::make_shared<FileSource>(path, fs.get());
+  std::shared_ptr<FileSource> file = std::make_shared<FileSource>(path, fs);
   return std::make_shared<SingleFileDataset>(schema, root_partition, file, fs, format);
 }
 
