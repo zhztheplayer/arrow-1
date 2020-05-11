@@ -21,9 +21,7 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
-import io.netty.buffer.ArrowBuf;
-
-public class OwnershipsTest {
+public class TestOwnerships {
 
   @Test
   public void testTakeOwnerShip() {
