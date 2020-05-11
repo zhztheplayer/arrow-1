@@ -686,7 +686,6 @@
     <module>performance</module>
     <module>algorithm</module>
     <module>adapter/avro</module>
-    <module>dataset</module>
   </modules>
 
   <profiles>
@@ -708,6 +707,7 @@
         <!-- these have dependency on cpp -->
         <module>adapter/orc</module>
         <module>gandiva</module>
+        <module>dataset</module>
       </modules>
     </profile>
 

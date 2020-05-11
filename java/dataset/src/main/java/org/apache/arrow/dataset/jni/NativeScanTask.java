@@ -23,14 +23,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import org.apache.arrow.dataset.scanner.ScanTask;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BaseAllocator;
 import org.apache.arrow.memory.BufferLedger;
 import org.apache.arrow.memory.NativeUnderlingMemory;
 import org.apache.arrow.memory.Ownerships;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
-
-import io.netty.buffer.ArrowBuf;
 
 /**
  * Native implementation of {@link ScanTask}. Currently RecordBatches are iterated directly by the scanner
