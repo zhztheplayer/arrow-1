@@ -44,7 +44,7 @@ get_filename_component(ABS_ARROW_DATASET_PROTO
                        ${CMAKE_SOURCE_DIR}/src/jni/dataset/proto/Types.proto ABSOLUTE)
 
 add_custom_command(OUTPUT ${PROTO_OUTPUT_FILES}
-                   COMMAND protobuf::protoc
+                   COMMAND ${ARROW_PROTOBUF_PROTOC}
                            --proto_path
                            ${CMAKE_SOURCE_DIR}/src/jni/dataset/proto
                            --cpp_out
