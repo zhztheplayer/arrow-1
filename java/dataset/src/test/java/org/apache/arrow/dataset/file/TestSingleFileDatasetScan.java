@@ -51,9 +51,11 @@ public class TestSingleFileDatasetScan extends TestNativeDatasetScan {
   @ClassRule
   public static final TemporaryFolder TMP = new TemporaryFolder();
 
+  public static final String AVRO_SCHEMA_USER = "user.avsc";
+
   @Test
   public void testParquetRead() throws Exception {
-    ParquetWriteSupport writeSupport = new ParquetWriteSupport("test.avsc", TMP.newFolder());
+    ParquetWriteSupport writeSupport = new ParquetWriteSupport(AVRO_SCHEMA_USER, TMP.newFolder());
     GenericRecord record = new GenericData.Record(writeSupport.getAvroSchema());
     record.put("id", 1);
     record.put("name", "a");
