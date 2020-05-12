@@ -83,7 +83,7 @@ public class TestSingleFileDatasetScan extends TestNativeDatasetScan {
 
   @Test
   public void testParquetProjector() throws Exception {
-    ParquetWriteSupport writeSupport = new ParquetWriteSupport("test.avsc", TMP.newFolder());
+    ParquetWriteSupport writeSupport = new ParquetWriteSupport(AVRO_SCHEMA_USER, TMP.newFolder());
     GenericRecord record = new GenericData.Record(writeSupport.getAvroSchema());
     record.put("id", 1);
     record.put("name", "a");
@@ -115,7 +115,7 @@ public class TestSingleFileDatasetScan extends TestNativeDatasetScan {
 
   @Test
   public void testParquetFilter() throws Exception {
-    ParquetWriteSupport writeSupport = new ParquetWriteSupport("test.avsc", TMP.newFolder());
+    ParquetWriteSupport writeSupport = new ParquetWriteSupport(AVRO_SCHEMA_USER, TMP.newFolder());
     List<GenericRecord> records = newGenericRecordListBuilder()
         .add(new GenericRecordBuilder(writeSupport.getAvroSchema())
             .set("id", 1)
@@ -161,7 +161,7 @@ public class TestSingleFileDatasetScan extends TestNativeDatasetScan {
 
   @Test
   public void testParquetBatchSize() throws Exception {
-    ParquetWriteSupport writeSupport = new ParquetWriteSupport("test.avsc", TMP.newFolder());
+    ParquetWriteSupport writeSupport = new ParquetWriteSupport(AVRO_SCHEMA_USER, TMP.newFolder());
     List<GenericRecord> records = newGenericRecordListBuilder()
         .add(new GenericRecordBuilder(writeSupport.getAvroSchema())
             .set("id", 1)
