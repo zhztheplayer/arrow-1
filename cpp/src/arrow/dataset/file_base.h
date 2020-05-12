@@ -357,19 +357,22 @@ class ARROW_DS_EXPORT SingleFileDataset : public Dataset {
                     std::shared_ptr<FileFormat> format);
 
 
-  static Result<std::shared_ptr<SingleFileDataset>> Make(std::shared_ptr<Schema> schema,
-                                                         std::shared_ptr<Expression> root_partition,
-                                                         std::string path,
-                                                         std::shared_ptr<fs::FileSystem> fs,
-                                                         std::shared_ptr<FileFormat> format);
+  static Result<std::shared_ptr<SingleFileDataset>> Make(
+      std::shared_ptr<Schema> schema,
+      std::shared_ptr<Expression> root_partition,
+      std::string path,
+      std::shared_ptr<fs::FileSystem> fs,
+      std::shared_ptr<FileFormat> format);
 
-  static Result<std::shared_ptr<SingleFileDataset>> Make(std::shared_ptr<Schema> schema,
-                                                         std::shared_ptr<Expression> root_partition,
-                                                         std::shared_ptr<FileSource> file,
-                                                         std::shared_ptr<fs::FileSystem> fs,
-                                                         std::shared_ptr<FileFormat> format);
+  static Result<std::shared_ptr<SingleFileDataset>> Make(
+      std::shared_ptr<Schema> schema,
+      std::shared_ptr<Expression> root_partition,
+      std::shared_ptr<FileSource> file,
+      std::shared_ptr<fs::FileSystem> fs,
+      std::shared_ptr<FileFormat> format);
 
-  Result<std::shared_ptr<Dataset>> ReplaceSchema(std::shared_ptr<Schema> schema) const override;
+  Result<std::shared_ptr<Dataset>> ReplaceSchema(
+      std::shared_ptr<Schema> schema) const override;
   std::string type_name() const override { return "single_file"; }
 
  protected:
