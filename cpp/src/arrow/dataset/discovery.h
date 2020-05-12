@@ -251,8 +251,8 @@ class ARROW_DS_EXPORT SingleFileDatasetFactory : public DatasetFactory {
 
  protected:
   SingleFileDatasetFactory(std::shared_ptr<FileSource> file,
-      std::shared_ptr<fs::FileSystem> fs,
-      std::shared_ptr<FileFormat> format);
+                           std::shared_ptr<fs::FileSystem> fs,
+                           std::shared_ptr<FileFormat> format);
 
  private:
   std::shared_ptr<FileSource> file_;
