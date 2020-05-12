@@ -50,7 +50,7 @@ add_custom_command(OUTPUT ${PROTO_OUTPUT_FILES}
         --cpp_out
         ${PROTO_OUTPUT_DIR}
         ${CMAKE_SOURCE_DIR}/src/jni/dataset/proto/Types.proto
-        DEPENDS ${ABS_ARROW_DATASET_PROTO} protobuf::libprotobuf
+        DEPENDS ${ABS_ARROW_DATASET_PROTO} ${ARROW_PROTOBUF_LIBPROTOBUF}
         COMMENT "Running PROTO compiler on Types.proto"
         VERBATIM)
 
