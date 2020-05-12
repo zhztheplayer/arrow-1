@@ -343,10 +343,10 @@ class TestSingleFileDataset : public ::testing::Test {
  public:
   void MakeSingleFileDataset(const std::string& path) {
     auto format = std::make_shared<DummyFileFormat>();
-    ASSERT_OK_AND_ASSIGN(dataset_,
-                         SingleFileDataset::Make(schema({}), scalar(true),
-                                                 std::make_shared<FileSource>(path, fs_),
-                                                     fs_, format));
+    ASSERT_OK_AND_ASSIGN(
+        dataset_,
+        SingleFileDataset::Make(schema({}), scalar(true),
+                                std::make_shared<FileSource>(path, fs_), fs_, format));
   }
 
   std::shared_ptr<fs::FileSystem> fs_;
