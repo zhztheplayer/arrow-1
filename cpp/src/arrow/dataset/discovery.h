@@ -240,7 +240,6 @@ class ARROW_DS_EXPORT FileSystemDatasetFactory : public DatasetFactory {
 
 class ARROW_DS_EXPORT SingleFileDatasetFactory : public DatasetFactory {
  public:
-
   static Result<std::shared_ptr<DatasetFactory>> Make(std::string path,
                                                       std::shared_ptr<fs::FileSystem> fs,
                                                       std::shared_ptr<FileFormat> format);
@@ -251,7 +250,8 @@ class ARROW_DS_EXPORT SingleFileDatasetFactory : public DatasetFactory {
   Result<std::shared_ptr<Dataset>> Finish(FinishOptions options) override;
 
  protected:
-  SingleFileDatasetFactory(std::shared_ptr<FileSource> file, std::shared_ptr<fs::FileSystem> fs,
+  SingleFileDatasetFactory(std::shared_ptr<FileSource> file,
+      std::shared_ptr<fs::FileSystem> fs,
       std::shared_ptr<FileFormat> format);
 
  private:

@@ -255,15 +255,18 @@ Result<std::shared_ptr<Dataset>> FileSystemDatasetFactory::Finish(FinishOptions 
   return FileSystemDataset::Make(schema, root_partition_, format_, fragments);
 }
 
-Result<std::shared_ptr<DatasetFactory>> SingleFileDatasetFactory::Make(std::string path,
-                                                                       std::shared_ptr<fs::FileSystem> fs,
-                                                                       std::shared_ptr<FileFormat> format) {
+Result<std::shared_ptr<DatasetFactory>> SingleFileDatasetFactory::Make(
+    std::string path,
+    std::shared_ptr<fs::FileSystem> fs,
+    std::shared_ptr<FileFormat> format) {
   std::shared_ptr<FileSource> file_src = std::make_shared<FileSource>(path, fs);
   return std::shared_ptr<DatasetFactory>(
-      new SingleFileDatasetFactory(std::move(file_src), std::move(fs),std::move(format)));
+      new SingleFileDatasetFactory(std::move(file_src),
+          std::move(fs), std::move(format)));
 }
 
-Result<std::vector<std::shared_ptr<Schema>>> SingleFileDatasetFactory::InspectSchemas(InspectOptions options) {
+Result<std::vector<std::shared_ptr<Schema>>> SingleFileDatasetFactory::InspectSchemas(
+    InspectOptions options) {
   ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::Schema> schema, format_->Inspect(*file_))
   return std::vector<std::shared_ptr<Schema>>{std::move(schema)};
 }

@@ -281,7 +281,7 @@ class ARROW_DS_EXPORT WritePlan {
   std::string partition_base_dir;
 
   using FragmentOrPartitionExpression =
-      util::variant<std::shared_ptr<Expression>, std::shared_ptr<Fragment>>;
+  util::variant<std::shared_ptr<Expression>, std::shared_ptr<Fragment>>;
 
   /// If fragment_or_partition_expressions[i] is a Fragment, that Fragment will be
   /// written to paths[i]. If it is an Expression, a directory representing that partition
@@ -299,19 +299,22 @@ class ARROW_DS_EXPORT SingleFileDataset : public Dataset {
                     std::shared_ptr<FileFormat> format);
 
 
-  static Result<std::shared_ptr<SingleFileDataset>> Make(std::shared_ptr<Schema> schema,
-                                                         std::shared_ptr<Expression> root_partition,
-                                                         std::string path,
-                                                         std::shared_ptr<fs::FileSystem> fs,
-                                                         std::shared_ptr<FileFormat> format);
+  static Result<std::shared_ptr<SingleFileDataset>> Make(
+      std::shared_ptr<Schema> schema,
+      std::shared_ptr<Expression> root_partition,
+      std::string path,
+      std::shared_ptr<fs::FileSystem> fs,
+      std::shared_ptr<FileFormat> format);
 
-  static Result<std::shared_ptr<SingleFileDataset>> Make(std::shared_ptr<Schema> schema,
-                                                         std::shared_ptr<Expression> root_partition,
-                                                         std::shared_ptr<FileSource> file,
-                                                         std::shared_ptr<fs::FileSystem> fs,
-                                                         std::shared_ptr<FileFormat> format);
+  static Result<std::shared_ptr<SingleFileDataset>> Make(
+      std::shared_ptr<Schema> schema,
+      std::shared_ptr<Expression> root_partition,
+      std::shared_ptr<FileSource> file,
+      std::shared_ptr<fs::FileSystem> fs,
+      std::shared_ptr<FileFormat> format);
 
-  Result<std::shared_ptr<Dataset>> ReplaceSchema(std::shared_ptr<Schema> schema) const override;
+  Result<std::shared_ptr<Dataset>> ReplaceSchema(
+      std::shared_ptr<Schema> schema) const override;
   std::string type_name() const override { return "single_file"; }
 
  protected:
