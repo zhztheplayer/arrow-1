@@ -20,6 +20,7 @@ package org.apache.arrow.dataset.file;
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
@@ -41,6 +42,12 @@ class ParquetWriteSupport implements AutoCloseable {
     writer = AvroParquetWriter.<GenericRecord>builder(new org.apache.hadoop.fs.Path(path))
         .withSchema(avroSchema)
         .build();
+  }
+
+  public void writeRecords(List<GenericRecord> records) throws Exception {
+    for (GenericRecord record : records) {
+      writeRecord(record);
+    }
   }
 
   public void writeRecord(GenericRecord record) throws Exception {
