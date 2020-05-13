@@ -35,7 +35,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.junit.After;
 import org.junit.Before;
 
-public abstract class TestDatasetScan {
+public abstract class TestDataset {
   private RootAllocator allocator = null;
 
   @Before

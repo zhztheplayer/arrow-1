@@ -15,19 +15,22 @@
  * limitations under the License.
  */
 
-package org.apache.arrow.dataset.jni;
+package org.apache.arrow.dataset.file;
 
-import org.apache.arrow.dataset.TestDatasetScan;
-import org.apache.arrow.dataset.scanner.ScanOptions;
-import org.apache.arrow.dataset.scanner.Scanner;
-import org.apache.arrow.dataset.source.Dataset;
-import org.apache.arrow.dataset.source.DatasetFactory;
-import org.junit.Assert;
+import org.apache.arrow.memory.RootAllocator;
+import org.junit.Test;
 
-public abstract class TestNativeDatasetScan extends TestDatasetScan {
-  protected void assertSingleTaskProduced(DatasetFactory factory, ScanOptions options) {
-    final Dataset dataset = factory.finish();
-    final Scanner scanner = dataset.newScan(options);
-    Assert.assertEquals(1L, stream(scanner.scan()).count());
+public class TestSingleFileDatasetFactory {
+
+  @Test(expected = RuntimeException.class)
+  public void testErrorHandling1() {
+    new SingleFileDatasetFactory(new RootAllocator(Long.MAX_VALUE),
+        FileFormat.NONE, FileSystem.LOCAL, "NON_EXIST_FILE");
+  }
+
+  @Test(expected = RuntimeException.class)
+  public void testErrorHandling2() {
+    new SingleFileDatasetFactory(new RootAllocator(Long.MAX_VALUE),
+        FileFormat.PARQUET, FileSystem.NONE, "NON_EXIST_FILE");
   }
 }
