@@ -15,23 +15,19 @@
  * limitations under the License.
  */
 
-package org.apache.arrow.dataset.file;
+package org.apache.arrow.dataset.jni;
 
-/**
- * Filesystem definitions.
- */
-public enum FileSystem {
-  LOCAL(0),
-  HDFS(1),
-  NONE(-1);
+import org.apache.arrow.dataset.TestDataset;
+import org.apache.arrow.dataset.scanner.ScanOptions;
+import org.apache.arrow.dataset.scanner.Scanner;
+import org.apache.arrow.dataset.source.Dataset;
+import org.apache.arrow.dataset.source.DatasetFactory;
+import org.junit.Assert;
 
-  private int id;
-
-  FileSystem(int id) {
-    this.id = id;
-  }
-
-  public int id() {
-    return id;
+public abstract class TestNativeDataset extends TestDataset {
+  protected void assertSingleTaskProduced(DatasetFactory factory, ScanOptions options) {
+    final Dataset dataset = factory.finish();
+    final Scanner scanner = dataset.newScan(options);
+    Assert.assertEquals(1L, stream(scanner.scan()).count());
   }
 }

@@ -63,7 +63,7 @@ class ParquetWriteSupport implements AutoCloseable {
   }
 
   private org.apache.avro.Schema getAvroSchema(String schemaName) throws Exception {
-    Path schemaPath = Paths.get(TestSingleFileDatasetScan.class.getResource("/").getPath(),
+    Path schemaPath = Paths.get(ParquetWriteSupport.class.getResource("/").getPath(),
         "avroschema", schemaName);
     return new org.apache.avro.Schema.Parser().parse(schemaPath.toFile());
   }

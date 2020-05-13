@@ -24,6 +24,7 @@
 #include <arrow/util/iterator.h>
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/message.h>
+
 #include "arrow/compute/kernel.h"
 #include "arrow/compute/kernels/cast.h"
 #include "arrow/compute/kernels/compare.h"
@@ -46,6 +47,42 @@ static jmethodID record_batch_handle_buffer_constructor;
 
 static jint JNI_VERSION = JNI_VERSION_1_6;
 
+class JniPendingException : public std::runtime_error {
+ public:
+  explicit JniPendingException(const std::string& arg) : runtime_error(arg) {}
+};
+
+void ThrowPendingException(const std::string& message) {
+  throw JniPendingException(message);
+}
+
+template <typename T>
+T JniGetOrThrow(arrow::Result<T> result) {
+  if (!result.status().ok()) {
+    ThrowPendingException(result.status().message());
+  }
+  return std::move(result).ValueOrDie();
+}
+
+void JniAssertOkOrThrow(arrow::Status status) {
+  if (!status.ok()) {
+    ThrowPendingException(status.message());
+  }
+}
+
+void JniThrow(std::string message) { ThrowPendingException(message); }
+
+#define JNI_METHOD_START try {
+// macro ended
+
+#define JNI_METHOD_END(fallback_expr)                 \
+  }                                                   \
+  catch (JniPendingException & e) {                   \
+    env->ThrowNew(runtime_exception_class, e.what()); \
+    return fallback_expr;                             \
+  }
+// macro ended
+
 jclass CreateGlobalClassReference(JNIEnv* env, const char* class_name) {
   jclass local_class = env->FindClass(class_name);
   jclass global_class = (jclass)env->NewGlobalRef(local_class);
@@ -53,12 +90,13 @@ jclass CreateGlobalClassReference(JNIEnv* env, const char* class_name) {
   return global_class;
 }
 
-jmethodID GetMethodID(JNIEnv* env, jclass this_class, const char* name, const char* sig) {
+arrow::Result<jmethodID> GetMethodID(JNIEnv* env, jclass this_class, const char* name,
+                                     const char* sig) {
   jmethodID ret = env->GetMethodID(this_class, name, sig);
   if (ret == nullptr) {
     std::string error_message = "Unable to find method " + std::string(name) +
                                 " within signature" + std::string(sig);
-    env->ThrowNew(illegal_access_exception_class, error_message.c_str());
+    return arrow::Status::Invalid(error_message);
   }
   return ret;
 }
@@ -68,7 +106,7 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
   if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION) != JNI_OK) {
     return JNI_ERR;
   }
-
+  JNI_METHOD_START
   illegal_access_exception_class =
       CreateGlobalClassReference(env, "Ljava/lang/IllegalAccessException;");
   illegal_argument_exception_class =
@@ -89,19 +127,19 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
                                  "Lorg/apache/arrow/"
                                  "dataset/jni/NativeRecordBatchHandle$Buffer;");
 
-  record_batch_handle_constructor = GetMethodID(env, record_batch_handle_class, "<init>",
-                                                "(J[Lorg/apache/arrow/dataset/"
-                                                "jni/NativeRecordBatchHandle$Field;"
-                                                "[Lorg/apache/arrow/dataset/"
-                                                "jni/NativeRecordBatchHandle$Buffer;)V");
+  record_batch_handle_constructor =
+      JniGetOrThrow(GetMethodID(env, record_batch_handle_class, "<init>",
+                                "(J[Lorg/apache/arrow/dataset/"
+                                "jni/NativeRecordBatchHandle$Field;"
+                                "[Lorg/apache/arrow/dataset/"
+                                "jni/NativeRecordBatchHandle$Buffer;)V"));
   record_batch_handle_field_constructor =
-      GetMethodID(env, record_batch_handle_field_class, "<init>", "(JJ)V");
-  record_batch_handle_buffer_constructor =
-      GetMethodID(env, record_batch_handle_buffer_class, "<init>", "(JJJJ)V");
-
-  env->ExceptionDescribe();
+      JniGetOrThrow(GetMethodID(env, record_batch_handle_field_class, "<init>", "(JJ)V"));
+  record_batch_handle_buffer_constructor = JniGetOrThrow(
+      GetMethodID(env, record_batch_handle_buffer_class, "<init>", "(JJJJ)V"));
 
   return JNI_VERSION;
+  JNI_METHOD_END(JNI_ERR)
 }
 
 void JNI_OnUnload(JavaVM* vm, void* reserved) {
@@ -115,20 +153,6 @@ void JNI_OnUnload(JavaVM* vm, void* reserved) {
   env->DeleteGlobalRef(record_batch_handle_buffer_class);
 }
 
-template <typename T>
-T JniGetOrThrow(JNIEnv* env, arrow::Result<T> result) {
-  if (!result.status().ok()) {
-    env->ThrowNew(runtime_exception_class, result.status().message().c_str());
-  }
-  return std::move(result).ValueOrDie();
-}
-
-void JniAssertOkOrThrow(JNIEnv* env, arrow::Status status) {
-  if (!status.ok()) {
-    env->ThrowNew(runtime_exception_class, status.message().c_str());
-  }
-}
-
 std::shared_ptr<arrow::Schema> SchemaFromColumnNames(
     const std::shared_ptr<arrow::Schema>& input,
     const std::vector<std::string>& column_names) {
@@ -139,37 +163,37 @@ std::shared_ptr<arrow::Schema> SchemaFromColumnNames(
   return std::make_shared<arrow::Schema>(columns);
 }
 
-std::shared_ptr<arrow::dataset::FileFormat> GetFileFormat(JNIEnv* env, jint id) {
+arrow::Result<std::shared_ptr<arrow::dataset::FileFormat>> GetFileFormat(jint id) {
   switch (id) {
     case 0:
       return std::make_shared<arrow::dataset::ParquetFileFormat>();
     default:
       std::string error_message = "illegal file format id: " + std::to_string(id);
-      env->ThrowNew(illegal_argument_exception_class, error_message.c_str());
-      return nullptr;  // unreachable
+      return arrow::Status::Invalid(error_message);
   }
 }
 
-std::shared_ptr<arrow::fs::FileSystem> GetFileSystem(JNIEnv* env, jint id,
-                                                     std::string path,
-                                                     std::string* out_path) {
+arrow::Result<std::shared_ptr<arrow::fs::FileSystem>> GetFileSystem(
+    jint id, std::string path, std::string* out_path) {
   switch (id) {
     case 0:
       *out_path = path;
       return std::make_shared<arrow::fs::LocalFileSystem>();
     case 1: {
-      std::shared_ptr<arrow::fs::FileSystem> ret =
-          JniGetOrThrow(env, arrow::fs::FileSystemFromUri(path, out_path));
+      ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::fs::FileSystem> ret,
+                            arrow::fs::FileSystemFromUri(path, out_path))
       return ret;
     }
     default:
       std::string error_message = "illegal filesystem id: " + std::to_string(id);
-      env->ThrowNew(illegal_argument_exception_class, error_message.c_str());
-      return nullptr;  // unreachable
+      return arrow::Status::Invalid(error_message);
   }
 }
 
 std::string JStringToCString(JNIEnv* env, jstring string) {
+  if (string == nullptr) {
+    return std::string();
+  }
   jboolean copied;
   int32_t length = env->GetStringUTFLength(string);
   const char* chars = env->GetStringUTFChars(string, &copied);
@@ -206,9 +230,11 @@ void ReleaseNativeRef(jlong ref) {
   delete retrieved_ptr;
 }
 
-jbyteArray ToSchemaByteArray(JNIEnv* env, std::shared_ptr<arrow::Schema> schema) {
-  std::shared_ptr<arrow::Buffer> buffer = JniGetOrThrow(
-      env, arrow::ipc::SerializeSchema(*schema, nullptr, arrow::default_memory_pool()));
+arrow::Result<jbyteArray> ToSchemaByteArray(JNIEnv* env,
+                                            std::shared_ptr<arrow::Schema> schema) {
+  ARROW_ASSIGN_OR_RAISE(
+      std::shared_ptr<arrow::Buffer> buffer,
+      arrow::ipc::SerializeSchema(*schema, nullptr, arrow::default_memory_pool()))
 
   jbyteArray out = env->NewByteArray(buffer->size());
   auto src = reinterpret_cast<const jbyte*>(buffer->data());
@@ -216,15 +242,16 @@ jbyteArray ToSchemaByteArray(JNIEnv* env, std::shared_ptr<arrow::Schema> schema)
   return out;
 }
 
-std::shared_ptr<arrow::Schema> FromSchemaByteArray(JNIEnv* env, jbyteArray schemaBytes) {
+arrow::Result<std::shared_ptr<arrow::Schema>> FromSchemaByteArray(
+    JNIEnv* env, jbyteArray schemaBytes) {
   arrow::ipc::DictionaryMemo in_memo;
   int schemaBytes_len = env->GetArrayLength(schemaBytes);
   jbyte* schemaBytes_data = env->GetByteArrayElements(schemaBytes, nullptr);
   auto serialized_schema = std::make_shared<arrow::Buffer>(
       reinterpret_cast<uint8_t*>(schemaBytes_data), schemaBytes_len);
   arrow::io::BufferReader buf_reader(serialized_schema);
-  std::shared_ptr<arrow::Schema> schema =
-      JniGetOrThrow(env, arrow::ipc::ReadSchema(&buf_reader, &in_memo));
+  ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::Schema> schema,
+                        arrow::ipc::ReadSchema(&buf_reader, &in_memo))
   env->ReleaseByteArrayElements(schemaBytes, schemaBytes_data, JNI_ABORT);
   return schema;
 }
@@ -240,8 +267,8 @@ void releaseFilterInput(jbyteArray condition_arr, jbyte* condition_bytes, JNIEnv
 }
 
 // fixme in development. Not all node types considered.
-std::shared_ptr<arrow::dataset::Expression> TranslateNode(
-    arrow::dataset::types::TreeNode node, JNIEnv* env) {
+arrow::Result<std::shared_ptr<arrow::dataset::Expression>> TranslateNode(
+    arrow::dataset::types::TreeNode node) {
   if (node.has_fieldnode()) {
     const arrow::dataset::types::FieldNode& f_node = node.fieldnode();
     const std::string& name = f_node.name();
@@ -281,15 +308,21 @@ std::shared_ptr<arrow::dataset::Expression> TranslateNode(
     const arrow::dataset::types::AndNode& and_node = node.andnode();
     const arrow::dataset::types::TreeNode& left_arg = and_node.leftarg();
     const arrow::dataset::types::TreeNode& right_arg = and_node.rightarg();
-    return std::make_shared<arrow::dataset::AndExpression>(TranslateNode(left_arg, env),
-                                                           TranslateNode(right_arg, env));
+    ARROW_ASSIGN_OR_RAISE(const std::shared_ptr<arrow::dataset::Expression>& left_expr,
+                          TranslateNode(left_arg))
+    ARROW_ASSIGN_OR_RAISE(const std::shared_ptr<arrow::dataset::Expression>& right_expr,
+                          TranslateNode(right_arg))
+    return std::make_shared<arrow::dataset::AndExpression>(left_expr, right_expr);
   }
   if (node.has_ornode()) {
     const arrow::dataset::types::OrNode& or_node = node.ornode();
     const arrow::dataset::types::TreeNode& left_arg = or_node.leftarg();
     const arrow::dataset::types::TreeNode& right_arg = or_node.rightarg();
-    return std::make_shared<arrow::dataset::OrExpression>(TranslateNode(left_arg, env),
-                                                          TranslateNode(right_arg, env));
+    ARROW_ASSIGN_OR_RAISE(const std::shared_ptr<arrow::dataset::Expression>& left_expr,
+                          TranslateNode(left_arg))
+    ARROW_ASSIGN_OR_RAISE(const std::shared_ptr<arrow::dataset::Expression>& right_expr,
+                          TranslateNode(right_arg))
+    return std::make_shared<arrow::dataset::OrExpression>(left_expr, right_expr);
   }
   if (node.has_cpnode()) {
     const arrow::dataset::types::ComparisonNode& cp_node = node.cpnode();
@@ -306,38 +339,40 @@ std::shared_ptr<arrow::dataset::Expression> TranslateNode(
     } else if (op_name == "lessThanOrEqual") {
       op = arrow::compute::CompareOperator::LESS_EQUAL;
     } else {
-      std::string error_message = "Unknown operation name in comparison node";
-      env->ThrowNew(illegal_argument_exception_class, error_message.c_str());
-      return nullptr;  // unreachable
+      std::string error_message = "Unknown operation name in comparison node: " + op_name;
+      return arrow::Status::Invalid(error_message);
     }
     const arrow::dataset::types::TreeNode& left_arg = cp_node.leftarg();
     const arrow::dataset::types::TreeNode& right_arg = cp_node.rightarg();
-    return std::make_shared<arrow::dataset::ComparisonExpression>(
-        op, TranslateNode(left_arg, env), TranslateNode(right_arg, env));
+    ARROW_ASSIGN_OR_RAISE(const std::shared_ptr<arrow::dataset::Expression>& left_expr,
+                          TranslateNode(left_arg))
+    ARROW_ASSIGN_OR_RAISE(const std::shared_ptr<arrow::dataset::Expression>& right_expr,
+                          TranslateNode(right_arg))
+    return std::make_shared<arrow::dataset::ComparisonExpression>(op, left_expr,
+                                                                  right_expr);
   }
   if (node.has_notnode()) {
     const arrow::dataset::types::NotNode& not_node = node.notnode();
     const ::arrow::dataset::types::TreeNode& child = not_node.args();
-    std::shared_ptr<arrow::dataset::Expression> translatedChild =
-        TranslateNode(child, env);
+    ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::dataset::Expression> translatedChild,
+                          TranslateNode(child))
     return std::make_shared<arrow::dataset::NotExpression>(translatedChild);
   }
   if (node.has_isvalidnode()) {
     const arrow::dataset::types::IsValidNode& is_valid_node = node.isvalidnode();
     const ::arrow::dataset::types::TreeNode& child = is_valid_node.args();
-    std::shared_ptr<arrow::dataset::Expression> translatedChild =
-        TranslateNode(child, env);
+    ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::dataset::Expression> translatedChild,
+                          TranslateNode(child))
     return std::make_shared<arrow::dataset::IsValidExpression>(translatedChild);
   }
   std::string error_message = "Unknown node type";
-  env->ThrowNew(illegal_argument_exception_class, error_message.c_str());
-  return nullptr;  // unreachable
+  return arrow::Status::Invalid(error_message);
 }
 
-std::shared_ptr<arrow::dataset::Expression> TranslateFilter(
-    arrow::dataset::types::Condition condition, JNIEnv* env) {
+arrow::Result<std::shared_ptr<arrow::dataset::Expression>> TranslateFilter(
+    arrow::dataset::types::Condition condition) {
   const arrow::dataset::types::TreeNode& tree_node = condition.root();
-  return TranslateNode(tree_node, env);
+  return TranslateNode(tree_node);
 }
 
 /*
@@ -346,8 +381,10 @@ std::shared_ptr<arrow::dataset::Expression> TranslateFilter(
  * Signature: (J)V
  */
 JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeDatasetFactory(
-    JNIEnv*, jobject, jlong id) {
+    JNIEnv* env, jobject, jlong id) {
+  JNI_METHOD_START
   ReleaseNativeRef<arrow::dataset::DatasetFactory>(id);
+  JNI_METHOD_END()
 }
 
 /*
@@ -357,10 +394,12 @@ JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeDataset
  */
 JNIEXPORT jbyteArray JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_inspectSchema(
     JNIEnv* env, jobject, jlong dataset_factor_id) {
+  JNI_METHOD_START
   std::shared_ptr<arrow::dataset::DatasetFactory> d =
       RetrieveNativeInstance<arrow::dataset::DatasetFactory>(dataset_factor_id);
-  std::shared_ptr<arrow::Schema> schema = JniGetOrThrow(env, d->Inspect());
-  return ToSchemaByteArray(env, schema);
+  std::shared_ptr<arrow::Schema> schema = JniGetOrThrow(d->Inspect());
+  return JniGetOrThrow(ToSchemaByteArray(env, schema));
+  JNI_METHOD_END(nullptr)
 }
 
 /*
@@ -370,13 +409,14 @@ JNIEXPORT jbyteArray JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_inspec
  */
 JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createDataset(
     JNIEnv* env, jobject, jlong dataset_factory_id, jbyteArray schema_bytes) {
+  JNI_METHOD_START
   std::shared_ptr<arrow::dataset::DatasetFactory> d =
       RetrieveNativeInstance<arrow::dataset::DatasetFactory>(dataset_factory_id);
   std::shared_ptr<arrow::Schema> schema;
-  schema = FromSchemaByteArray(env, schema_bytes);
-  std::shared_ptr<arrow::dataset::Dataset> dataset =
-      JniGetOrThrow(env, d->Finish(schema));
+  schema = JniGetOrThrow(FromSchemaByteArray(env, schema_bytes));
+  std::shared_ptr<arrow::dataset::Dataset> dataset = JniGetOrThrow(d->Finish(schema));
   return CreateNativeRef(dataset);
+  JNI_METHOD_END(-1L)
 }
 
 /*
@@ -384,9 +424,11 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createDatas
  * Method:    closeDataset
  * Signature: (J)V
  */
-JNIEXPORT void JNICALL
-Java_org_apache_arrow_dataset_jni_JniWrapper_closeDataset(JNIEnv*, jobject, jlong id) {
+JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeDataset(
+    JNIEnv* env, jobject, jlong id) {
+  JNI_METHOD_START
   ReleaseNativeRef<arrow::dataset::Dataset>(id);
+  JNI_METHOD_END()
 }
 
 /// \class DisposableScannerAdaptor
@@ -400,33 +442,27 @@ Java_org_apache_arrow_dataset_jni_JniWrapper_closeDataset(JNIEnv*, jobject, jlon
 ///
 class DisposableScannerAdaptor {
  public:
-  DisposableScannerAdaptor(JNIEnv* env,
-                           std::shared_ptr<arrow::dataset::Scanner> scanner) {
-    this->env_ = env;
+  DisposableScannerAdaptor(std::shared_ptr<arrow::dataset::Scanner> scanner,
+                           arrow::dataset::ScanTaskIterator task_itr) {
     this->scanner_ = std::move(scanner);
-    task_itr_ = JniGetOrThrow(env, scanner_->Scan());
-    if (!NextTask()) {
-      // naturally empty (no task returned by scanner)
-      is_naturally_empty_ = true;
-    }
+    this->task_itr_ = std::move(task_itr);
   }
 
-  static std::shared_ptr<DisposableScannerAdaptor> Create(
-      JNIEnv* env, std::shared_ptr<arrow::dataset::Scanner> scanner) {
-    return std::make_shared<DisposableScannerAdaptor>(env, scanner);
+  static arrow::Result<std::shared_ptr<DisposableScannerAdaptor>> Create(
+      std::shared_ptr<arrow::dataset::Scanner> scanner) {
+    ARROW_ASSIGN_OR_RAISE(arrow::dataset::ScanTaskIterator task_itr, scanner->Scan())
+    return std::make_shared<DisposableScannerAdaptor>(scanner, std::move(task_itr));
   }
 
-  std::shared_ptr<arrow::RecordBatch> Next() {
-    if (is_naturally_empty_) {
-      return nullptr;
-    }
+  arrow::Result<std::shared_ptr<arrow::RecordBatch>> Next() {
     do {
-      std::shared_ptr<arrow::RecordBatch> batch = NextBatch();
+      ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::RecordBatch> batch, NextBatch())
       if (batch != nullptr) {
         return batch;
       }
       // batch is null, current task is fully consumed
-      if (!NextTask()) {
+      ARROW_ASSIGN_OR_RAISE(bool has_next_task, NextTask())
+      if (!has_next_task) {
         // no more tasks
         return nullptr;
       }
@@ -437,27 +473,24 @@ class DisposableScannerAdaptor {
   const std::shared_ptr<arrow::dataset::Scanner>& GetScanner() const { return scanner_; }
 
  protected:
-  JNIEnv* env_;
   arrow::dataset::ScanTaskIterator task_itr_;
   std::shared_ptr<arrow::dataset::Scanner> scanner_;
   std::shared_ptr<arrow::dataset::ScanTask> current_task_ = nullptr;
-  arrow::RecordBatchIterator current_batch_itr_;
-  bool is_naturally_empty_ = false;
+  arrow::RecordBatchIterator current_batch_itr_ =
+      arrow::MakeEmptyIterator<std::shared_ptr<arrow::RecordBatch>>();
 
-  bool NextTask() {
-    JNIEnv* env = env_;
-    current_task_ = JniGetOrThrow(env, task_itr_.Next());
+  arrow::Result<bool> NextTask() {
+    ARROW_ASSIGN_OR_RAISE(current_task_, task_itr_.Next())
     if (current_task_ == nullptr) {
       return false;
     }
-    current_batch_itr_ = JniGetOrThrow(env, current_task_->Execute());
+    ARROW_ASSIGN_OR_RAISE(current_batch_itr_, current_task_->Execute())
     return true;
   }
 
-  std::shared_ptr<arrow::RecordBatch> NextBatch() {
-    JNIEnv* env = env_;
-    std::shared_ptr<arrow::RecordBatch> batch =
-        JniGetOrThrow(env, current_batch_itr_.Next());
+  arrow::Result<std::shared_ptr<arrow::RecordBatch>> NextBatch() {
+    ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::RecordBatch> batch,
+                          current_batch_itr_.Next())
     return batch;
   }
 };
@@ -470,16 +503,17 @@ class DisposableScannerAdaptor {
 JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScanner(
     JNIEnv* env, jobject, jlong dataset_id, jobjectArray columns, jbyteArray filter,
     jlong batch_size) {
+  JNI_METHOD_START
   std::shared_ptr<arrow::dataset::ScanContext> context =
       std::make_shared<arrow::dataset::ScanContext>();
   std::shared_ptr<arrow::dataset::Dataset> dataset =
       RetrieveNativeInstance<arrow::dataset::Dataset>(dataset_id);
   std::shared_ptr<arrow::dataset::ScannerBuilder> scanner_builder =
-      JniGetOrThrow(env, dataset->NewScan());
+      JniGetOrThrow(dataset->NewScan());
 
   std::vector<std::string> column_vector = ToStringVector(env, columns);
-  JniAssertOkOrThrow(env, scanner_builder->Project(column_vector));
-  JniAssertOkOrThrow(env, scanner_builder->BatchSize(batch_size));
+  JniAssertOkOrThrow(scanner_builder->Project(column_vector));
+  JniAssertOkOrThrow(scanner_builder->BatchSize(batch_size));
 
   // initialize filters
   jsize exprs_len = env->GetArrayLength(filter);
@@ -488,17 +522,20 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScann
   if (!ParseProtobuf(reinterpret_cast<uint8_t*>(exprs_bytes), exprs_len, &condition)) {
     releaseFilterInput(filter, exprs_bytes, env);
     std::string error_message = "bad protobuf message";
-    env->ThrowNew(illegal_argument_exception_class, error_message.c_str());
+    JniThrow(error_message);
   }
   if (condition.has_root()) {
-    JniAssertOkOrThrow(env, scanner_builder->Filter(TranslateFilter(condition, env)));
+    std::shared_ptr<arrow::dataset::Expression> translated_filter =
+        JniGetOrThrow(TranslateFilter(condition));
+    JniAssertOkOrThrow(scanner_builder->Filter(translated_filter));
   }
-  auto scanner = JniGetOrThrow(env, scanner_builder->Finish());
+  auto scanner = JniGetOrThrow(scanner_builder->Finish());
   std::shared_ptr<DisposableScannerAdaptor> scanner_adaptor =
-      DisposableScannerAdaptor::Create(env, scanner);
+      JniGetOrThrow(DisposableScannerAdaptor::Create(scanner));
   jlong id = CreateNativeRef(scanner_adaptor);
   releaseFilterInput(filter, exprs_bytes, env);
   return id;
+  JNI_METHOD_END(-1L)
 }
 
 /*
@@ -507,8 +544,10 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScann
  * Signature: (J)V
  */
 JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeScanner(
-    JNIEnv*, jobject, jlong scanner_id) {
+    JNIEnv* env, jobject, jlong scanner_id) {
+  JNI_METHOD_START
   ReleaseNativeRef<DisposableScannerAdaptor>(scanner_id);
+  JNI_METHOD_END()
 }
 
 /*
@@ -519,11 +558,13 @@ JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeScanner
 JNIEXPORT jbyteArray JNICALL
 Java_org_apache_arrow_dataset_jni_JniWrapper_getSchemaFromScanner(JNIEnv* env, jobject,
                                                                   jlong scanner_id) {
+  JNI_METHOD_START
   std::shared_ptr<arrow::Schema> schema =
       RetrieveNativeInstance<DisposableScannerAdaptor>(scanner_id)
           ->GetScanner()
           ->schema();
-  return ToSchemaByteArray(env, schema);
+  return JniGetOrThrow(ToSchemaByteArray(env, schema));
+  JNI_METHOD_END(nullptr)
 }
 
 /*
@@ -533,10 +574,12 @@ Java_org_apache_arrow_dataset_jni_JniWrapper_getSchemaFromScanner(JNIEnv* env, j
  */
 JNIEXPORT jobject JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_nextRecordBatch(
     JNIEnv* env, jobject, jlong scanner_id) {
+  JNI_METHOD_START
   std::shared_ptr<DisposableScannerAdaptor> scanner_adaptor =
       RetrieveNativeInstance<DisposableScannerAdaptor>(scanner_id);
 
-  std::shared_ptr<arrow::RecordBatch> record_batch = scanner_adaptor->Next();
+  std::shared_ptr<arrow::RecordBatch> record_batch =
+      JniGetOrThrow(scanner_adaptor->Next());
   if (record_batch == nullptr) {
     return nullptr;  // stream ended
   }
@@ -580,6 +623,7 @@ JNIEXPORT jobject JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_nextRecor
   jobject ret = env->NewObject(record_batch_handle_class, record_batch_handle_constructor,
                                record_batch->num_rows(), field_array, buffer_array);
   return ret;
+  JNI_METHOD_END(nullptr)
 }
 
 /*
@@ -587,9 +631,11 @@ JNIEXPORT jobject JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_nextRecor
  * Method:    releaseBuffer
  * Signature: (J)V
  */
-JNIEXPORT void JNICALL
-Java_org_apache_arrow_dataset_jni_JniWrapper_releaseBuffer(JNIEnv*, jobject, jlong id) {
+JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_releaseBuffer(
+    JNIEnv* env, jobject, jlong id) {
+  JNI_METHOD_START
   ReleaseNativeRef<arrow::Buffer>(id);
+  JNI_METHOD_END()
 }
 
 /*
@@ -600,12 +646,14 @@ Java_org_apache_arrow_dataset_jni_JniWrapper_releaseBuffer(JNIEnv*, jobject, jlo
 JNIEXPORT jlong JNICALL
 Java_org_apache_arrow_dataset_file_JniWrapper_makeSingleFileDatasetFactory(
     JNIEnv* env, jobject, jstring path, jint file_format_id, jint file_system_id) {
+  JNI_METHOD_START
   std::shared_ptr<arrow::dataset::FileFormat> file_format =
-      GetFileFormat(env, file_format_id);
+      JniGetOrThrow(GetFileFormat(file_format_id));
   std::string out_path;
-  std::shared_ptr<arrow::fs::FileSystem> fs =
-      GetFileSystem(env, file_system_id, JStringToCString(env, path), &out_path);
+  std::shared_ptr<arrow::fs::FileSystem> fs = JniGetOrThrow(
+      GetFileSystem(file_system_id, JStringToCString(env, path), &out_path));
   std::shared_ptr<arrow::dataset::DatasetFactory> d = JniGetOrThrow(
-      env, arrow::dataset::SingleFileDatasetFactory::Make(out_path, fs, file_format));
+      arrow::dataset::SingleFileDatasetFactory::Make(out_path, fs, file_format));
   return CreateNativeRef(d);
+  JNI_METHOD_END(-1L)
 }

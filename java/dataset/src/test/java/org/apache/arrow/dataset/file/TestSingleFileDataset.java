@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 
 import org.apache.arrow.dataset.DatasetTypes;
 import org.apache.arrow.dataset.filter.Filter;
-import org.apache.arrow.dataset.jni.TestNativeDatasetScan;
+import org.apache.arrow.dataset.jni.TestNativeDataset;
 import org.apache.arrow.dataset.scanner.ScanOptions;
 import org.apache.arrow.util.AutoCloseables;
 import org.apache.arrow.vector.FieldVector;
@@ -46,7 +46,7 @@ import org.junit.rules.TemporaryFolder;
 
 import com.google.common.collect.ImmutableList;
 
-public class TestSingleFileDatasetScan extends TestNativeDatasetScan {
+public class TestSingleFileDataset extends TestNativeDataset {
 
   @ClassRule
   public static final TemporaryFolder TMP = new TemporaryFolder();
