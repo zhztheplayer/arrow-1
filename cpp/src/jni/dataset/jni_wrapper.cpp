@@ -185,7 +185,7 @@ arrow::Result<std::shared_ptr<arrow::fs::FileSystem>> GetFileSystem(
       return ret;
     }
     default:
-      std::string error_message = "illegal filesystem id: " + std::to_string(id);
+      std::string error_message = "illegal file system id: " + std::to_string(id);
       return arrow::Status::Invalid(error_message);
   }
 }

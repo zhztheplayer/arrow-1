@@ -57,7 +57,7 @@ public class NativeScanTask implements ScanTask, AutoCloseable {
       private ArrowRecordBatch peek = null;
 
       @Override
-      public void close() throws Exception {
+      public void close() {
         scanner.close();
       }
 
@@ -79,6 +79,7 @@ public class NativeScanTask implements ScanTask, AutoCloseable {
           ArrowBuf buf = new ArrowBuf(ledger, null, (int) buffer.size, buffer.memoryAddress, false);
           buffers.add(buf);
         }
+
         try {
           peek = new ArrowRecordBatch((int) handle.getNumRows(), handle.getFields().stream()
               .map(field -> new ArrowFieldNode((int) field.length, (int) field.nullCount))
@@ -94,6 +95,7 @@ public class NativeScanTask implements ScanTask, AutoCloseable {
         if (!hasNext()) {
           throw new NoSuchElementException();
         }
+
         try {
           return peek;
         } finally {
@@ -104,7 +106,7 @@ public class NativeScanTask implements ScanTask, AutoCloseable {
   }
 
   @Override
-  public void close() throws Exception {
+  public void close() {
     scanner.close();
   }
 }

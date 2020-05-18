@@ -17,20 +17,29 @@
 
 package org.apache.arrow.dataset.file;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import org.apache.arrow.memory.RootAllocator;
 import org.junit.Test;
 
 public class TestSingleFileDatasetFactory {
 
-  @Test(expected = RuntimeException.class)
+  @Test
   public void testErrorHandling1() {
-    new SingleFileDatasetFactory(new RootAllocator(Long.MAX_VALUE),
-        FileFormat.NONE, FileSystem.LOCAL, "NON_EXIST_FILE");
+    RuntimeException e = assertThrows(RuntimeException.class, () -> {
+      new SingleFileDatasetFactory(new RootAllocator(Long.MAX_VALUE),
+          FileFormat.NONE, FileSystem.LOCAL, "NON_EXIST_FILE");
+    });
+    assertEquals("illegal file format id: -1", e.getMessage());
   }
 
-  @Test(expected = RuntimeException.class)
+  @Test
   public void testErrorHandling2() {
-    new SingleFileDatasetFactory(new RootAllocator(Long.MAX_VALUE),
-        FileFormat.PARQUET, FileSystem.NONE, "NON_EXIST_FILE");
+    RuntimeException e = assertThrows(RuntimeException.class, () -> {
+      new SingleFileDatasetFactory(new RootAllocator(Long.MAX_VALUE),
+          FileFormat.PARQUET, FileSystem.NONE, "NON_EXIST_FILE");
+    });
+    assertEquals("illegal file system id: -1", e.getMessage());
   }
 }
