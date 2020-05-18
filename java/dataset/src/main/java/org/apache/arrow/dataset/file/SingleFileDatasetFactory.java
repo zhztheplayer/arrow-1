@@ -21,7 +21,7 @@ import org.apache.arrow.dataset.jni.NativeDatasetFactory;
 import org.apache.arrow.memory.BufferAllocator;
 
 /**
- * Java binding of the C++ SingleFileDataSourceDiscovery.
+ * Java binding of the C++ SingleFileDatasetFactory.
  */
 public class SingleFileDatasetFactory extends NativeDatasetFactory {
 
