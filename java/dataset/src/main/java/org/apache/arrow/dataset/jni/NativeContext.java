@@ -22,7 +22,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.util.Preconditions;
 
 /**
- * Context for relevant classes of NativeDataSource.
+ * Context for relevant classes of NativeDataset.
  */
 public class NativeContext {
   private final BufferAllocator allocator;

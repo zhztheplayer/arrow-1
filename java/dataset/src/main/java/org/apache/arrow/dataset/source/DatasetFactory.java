@@ -20,7 +20,7 @@ package org.apache.arrow.dataset.source;
 import org.apache.arrow.vector.types.pojo.Schema;
 
 /**
- * DataSourceDiscovery provides a way to inspect a DataSource potential
+ * DatasetFactory provides a way to inspect a Dataset potential
  * schema before materializing it. Thus, the user can peek the schema for
  * data sources and decide on a unified schema.
  */
