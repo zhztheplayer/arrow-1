@@ -28,7 +28,7 @@
 #include "arrow/compute/kernel.h"
 #include "arrow/compute/kernels/cast.h"
 #include "arrow/compute/kernels/compare.h"
-#include "jni/dataset/Types.pb.h"
+#include "jni/dataset/DatasetTypes.pb.h"
 
 #include "org_apache_arrow_dataset_file_JniWrapper.h"
 #include "org_apache_arrow_dataset_jni_JniWrapper.h"
