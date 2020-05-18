@@ -65,7 +65,7 @@ public class NativeScanner implements Scanner {
   }
 
   @Override
-  public void close() throws Exception {
+  public void close() {
     if (!closed.compareAndSet(false, true)) {
       return;
     }

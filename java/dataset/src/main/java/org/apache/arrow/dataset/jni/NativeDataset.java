@@ -42,7 +42,7 @@ public class NativeDataset implements Dataset, AutoCloseable {
   }
 
   @Override
-  public void close() throws Exception {
+  public void close() {
     JniWrapper.get().closeDataset(datasetId);
   }
 }
