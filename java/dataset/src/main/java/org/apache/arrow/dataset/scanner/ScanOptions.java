@@ -17,34 +17,25 @@
 
 package org.apache.arrow.dataset.scanner;
 
-import org.apache.arrow.dataset.filter.Filter;
-
 /**
  * Options used during scanning.
  */
 public class ScanOptions {
   private final String[] columns;
-  private final Filter filter;
   private final long batchSize;
 
   /**
    * Constructor.
    * @param columns Projected columns
-   * @param filter Filter
    * @param batchSize Maximum row number of each returned {@link org.apache.arrow.vector.VectorSchemaRoot}
    */
-  public ScanOptions(String[] columns, Filter filter, long batchSize) {
+  public ScanOptions(String[] columns, long batchSize) {
     this.columns = columns;
-    this.filter = filter;
     this.batchSize = batchSize;
   }
 
   public String[] getColumns() {
     return columns;
-  }
-
-  public Filter getFilter() {
-    return filter;
   }
 
   public long getBatchSize() {

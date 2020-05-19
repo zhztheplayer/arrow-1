@@ -68,12 +68,10 @@ public class JniWrapper {
    * Create Scanner from a Dataset and get the native pointer of the Dataset.
    * @param datasetId the native pointer of the arrow::dataset::Dataset instance.
    * @param columns desired column names. Columns not in this list will not be emitted when performing scan operation.
-   * @param filter the serialized datasets filter.
    * @param batchSize batch size of scanned record batches.
    * @return the native pointer of the arrow::dataset::Scanner instance.
-   * @see org.apache.arrow.dataset.DatasetTypes.Condition
    */
-  public native long createScanner(long datasetId, String[] columns, byte[] filter, long batchSize);
+  public native long createScanner(long datasetId, String[] columns, long batchSize);
 
   /**
    * Get a serialized schema from native instance of a Scanner.

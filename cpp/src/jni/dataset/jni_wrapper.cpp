@@ -22,13 +22,6 @@
 #include <arrow/io/api.h>
 #include <arrow/ipc/api.h>
 #include <arrow/util/iterator.h>
-#include <google/protobuf/io/coded_stream.h>
-#include <google/protobuf/message.h>
-
-#include "arrow/compute/kernel.h"
-#include "arrow/compute/kernels/cast.h"
-#include "arrow/compute/kernels/compare.h"
-#include "jni/dataset/DatasetTypes.pb.h"
 
 #include "org_apache_arrow_dataset_file_JniWrapper.h"
 #include "org_apache_arrow_dataset_jni_JniWrapper.h"
@@ -256,125 +249,6 @@ arrow::Result<std::shared_ptr<arrow::Schema>> FromSchemaByteArray(
   return schema;
 }
 
-bool ParseProtobuf(uint8_t* buf, int bufLen, google::protobuf::Message* msg) {
-  google::protobuf::io::CodedInputStream cis(buf, bufLen);
-  cis.SetRecursionLimit(1000);
-  return msg->ParseFromCodedStream(&cis);
-}
-
-void releaseFilterInput(jbyteArray condition_arr, jbyte* condition_bytes, JNIEnv* env) {
-  env->ReleaseByteArrayElements(condition_arr, condition_bytes, JNI_ABORT);
-}
-
-// fixme in development. Not all node types considered.
-arrow::Result<std::shared_ptr<arrow::dataset::Expression>> TranslateNode(
-    arrow::dataset::types::TreeNode node) {
-  if (node.has_fieldnode()) {
-    const arrow::dataset::types::FieldNode& f_node = node.fieldnode();
-    const std::string& name = f_node.name();
-    return std::make_shared<arrow::dataset::FieldExpression>(name);
-  }
-  if (node.has_intnode()) {
-    const arrow::dataset::types::IntNode& int_node = node.intnode();
-    int32_t val = int_node.value();
-    return std::make_shared<arrow::dataset::ScalarExpression>(
-        std::make_shared<arrow::Int32Scalar>(val));
-  }
-  if (node.has_longnode()) {
-    const arrow::dataset::types::LongNode& long_node = node.longnode();
-    int64_t val = long_node.value();
-    return std::make_shared<arrow::dataset::ScalarExpression>(
-        std::make_shared<arrow::Int64Scalar>(val));
-  }
-  if (node.has_floatnode()) {
-    const arrow::dataset::types::FloatNode& float_node = node.floatnode();
-    float_t val = float_node.value();
-    return std::make_shared<arrow::dataset::ScalarExpression>(
-        std::make_shared<arrow::FloatScalar>(val));
-  }
-  if (node.has_doublenode()) {
-    const arrow::dataset::types::DoubleNode& double_node = node.doublenode();
-    double_t val = double_node.value();
-    return std::make_shared<arrow::dataset::ScalarExpression>(
-        std::make_shared<arrow::DoubleScalar>(val));
-  }
-  if (node.has_booleannode()) {
-    const arrow::dataset::types::BooleanNode& boolean_node = node.booleannode();
-    bool val = boolean_node.value();
-    return std::make_shared<arrow::dataset::ScalarExpression>(
-        std::make_shared<arrow::BooleanScalar>(val));
-  }
-  if (node.has_andnode()) {
-    const arrow::dataset::types::AndNode& and_node = node.andnode();
-    const arrow::dataset::types::TreeNode& left_arg = and_node.leftarg();
-    const arrow::dataset::types::TreeNode& right_arg = and_node.rightarg();
-    ARROW_ASSIGN_OR_RAISE(const std::shared_ptr<arrow::dataset::Expression>& left_expr,
-                          TranslateNode(left_arg))
-    ARROW_ASSIGN_OR_RAISE(const std::shared_ptr<arrow::dataset::Expression>& right_expr,
-                          TranslateNode(right_arg))
-    return std::make_shared<arrow::dataset::AndExpression>(left_expr, right_expr);
-  }
-  if (node.has_ornode()) {
-    const arrow::dataset::types::OrNode& or_node = node.ornode();
-    const arrow::dataset::types::TreeNode& left_arg = or_node.leftarg();
-    const arrow::dataset::types::TreeNode& right_arg = or_node.rightarg();
-    ARROW_ASSIGN_OR_RAISE(const std::shared_ptr<arrow::dataset::Expression>& left_expr,
-                          TranslateNode(left_arg))
-    ARROW_ASSIGN_OR_RAISE(const std::shared_ptr<arrow::dataset::Expression>& right_expr,
-                          TranslateNode(right_arg))
-    return std::make_shared<arrow::dataset::OrExpression>(left_expr, right_expr);
-  }
-  if (node.has_cpnode()) {
-    const arrow::dataset::types::ComparisonNode& cp_node = node.cpnode();
-    const std::string& op_name = cp_node.opname();
-    arrow::compute::CompareOperator op;
-    if (op_name == "equal") {
-      op = arrow::compute::CompareOperator::EQUAL;
-    } else if (op_name == "greaterThan") {
-      op = arrow::compute::CompareOperator::GREATER;
-    } else if (op_name == "greaterThanOrEqual") {
-      op = arrow::compute::CompareOperator::GREATER_EQUAL;
-    } else if (op_name == "lessThan") {
-      op = arrow::compute::CompareOperator::LESS;
-    } else if (op_name == "lessThanOrEqual") {
-      op = arrow::compute::CompareOperator::LESS_EQUAL;
-    } else {
-      std::string error_message = "Unknown operation name in comparison node: " + op_name;
-      return arrow::Status::Invalid(error_message);
-    }
-    const arrow::dataset::types::TreeNode& left_arg = cp_node.leftarg();
-    const arrow::dataset::types::TreeNode& right_arg = cp_node.rightarg();
-    ARROW_ASSIGN_OR_RAISE(const std::shared_ptr<arrow::dataset::Expression>& left_expr,
-                          TranslateNode(left_arg))
-    ARROW_ASSIGN_OR_RAISE(const std::shared_ptr<arrow::dataset::Expression>& right_expr,
-                          TranslateNode(right_arg))
-    return std::make_shared<arrow::dataset::ComparisonExpression>(op, left_expr,
-                                                                  right_expr);
-  }
-  if (node.has_notnode()) {
-    const arrow::dataset::types::NotNode& not_node = node.notnode();
-    const ::arrow::dataset::types::TreeNode& child = not_node.args();
-    ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::dataset::Expression> translatedChild,
-                          TranslateNode(child))
-    return std::make_shared<arrow::dataset::NotExpression>(translatedChild);
-  }
-  if (node.has_isvalidnode()) {
-    const arrow::dataset::types::IsValidNode& is_valid_node = node.isvalidnode();
-    const ::arrow::dataset::types::TreeNode& child = is_valid_node.args();
-    ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::dataset::Expression> translatedChild,
-                          TranslateNode(child))
-    return std::make_shared<arrow::dataset::IsValidExpression>(translatedChild);
-  }
-  std::string error_message = "Unknown node type";
-  return arrow::Status::Invalid(error_message);
-}
-
-arrow::Result<std::shared_ptr<arrow::dataset::Expression>> TranslateFilter(
-    arrow::dataset::types::Condition condition) {
-  const arrow::dataset::types::TreeNode& tree_node = condition.root();
-  return TranslateNode(tree_node);
-}
-
 /*
  * Class:     org_apache_arrow_dataset_jni_JniWrapper
  * Method:    closeDatasetFactory
@@ -501,8 +375,7 @@ class DisposableScannerAdaptor {
  * Signature: (J[Ljava/lang/String;[BJ)J
  */
 JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScanner(
-    JNIEnv* env, jobject, jlong dataset_id, jobjectArray columns, jbyteArray filter,
-    jlong batch_size) {
+    JNIEnv* env, jobject, jlong dataset_id, jobjectArray columns, jlong batch_size) {
   JNI_METHOD_START
   std::shared_ptr<arrow::dataset::ScanContext> context =
       std::make_shared<arrow::dataset::ScanContext>();
@@ -515,25 +388,10 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScann
   JniAssertOkOrThrow(scanner_builder->Project(column_vector));
   JniAssertOkOrThrow(scanner_builder->BatchSize(batch_size));
 
-  // initialize filters
-  jsize exprs_len = env->GetArrayLength(filter);
-  jbyte* exprs_bytes = env->GetByteArrayElements(filter, nullptr);
-  arrow::dataset::types::Condition condition;
-  if (!ParseProtobuf(reinterpret_cast<uint8_t*>(exprs_bytes), exprs_len, &condition)) {
-    releaseFilterInput(filter, exprs_bytes, env);
-    std::string error_message = "bad protobuf message";
-    JniThrow(error_message);
-  }
-  if (condition.has_root()) {
-    std::shared_ptr<arrow::dataset::Expression> translated_filter =
-        JniGetOrThrow(TranslateFilter(condition));
-    JniAssertOkOrThrow(scanner_builder->Filter(translated_filter));
-  }
   auto scanner = JniGetOrThrow(scanner_builder->Finish());
   std::shared_ptr<DisposableScannerAdaptor> scanner_adaptor =
       JniGetOrThrow(DisposableScannerAdaptor::Create(scanner));
   jlong id = CreateNativeRef(scanner_adaptor);
-  releaseFilterInput(filter, exprs_bytes, env);
   return id;
   JNI_METHOD_END(-1L)
 }

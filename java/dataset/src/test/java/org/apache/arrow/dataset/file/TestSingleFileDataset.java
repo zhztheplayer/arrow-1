@@ -26,8 +26,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import org.apache.arrow.dataset.DatasetTypes;
-import org.apache.arrow.dataset.filter.Filter;
 import org.apache.arrow.dataset.jni.TestNativeDataset;
 import org.apache.arrow.dataset.scanner.ScanOptions;
 import org.apache.arrow.util.AutoCloseables;
@@ -43,8 +41,6 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import com.google.common.collect.ImmutableList;
-
 public class TestSingleFileDataset extends TestNativeDataset {
 
   @ClassRule
@@ -58,7 +54,7 @@ public class TestSingleFileDataset extends TestNativeDataset {
 
     SingleFileDatasetFactory factory = new SingleFileDatasetFactory(rootAllocator(),
         FileFormat.PARQUET, FileSystem.LOCAL, writeSupport.getOutputFile());
-    ScanOptions options = new ScanOptions(new String[0], Filter.EMPTY, 100);
+    ScanOptions options = new ScanOptions(new String[0], 100);
     Schema schema = inferResultSchemaFromFactory(factory, options);
     List<ArrowRecordBatch> datum = collectResultFromFactory(factory, options);
 
@@ -80,7 +76,7 @@ public class TestSingleFileDataset extends TestNativeDataset {
 
     SingleFileDatasetFactory factory = new SingleFileDatasetFactory(rootAllocator(),
         FileFormat.PARQUET, FileSystem.LOCAL, writeSupport.getOutputFile());
-    ScanOptions options = new ScanOptions(new String[]{"id"}, Filter.EMPTY, 100);
+    ScanOptions options = new ScanOptions(new String[]{"id"}, 100);
     Schema schema = inferResultSchemaFromFactory(factory, options);
     List<ArrowRecordBatch> datum = collectResultFromFactory(factory, options);
     org.apache.avro.Schema expectedSchema = truncateAvroSchema(writeSupport.getAvroSchema(), 0, 1);
@@ -101,42 +97,11 @@ public class TestSingleFileDataset extends TestNativeDataset {
   }
 
   @Test
-  public void testParquetFilter() throws Exception {
-    ParquetWriteSupport writeSupport = ParquetWriteSupport.writeTempFile(AVRO_SCHEMA_USER, TMP.newFolder(),
-        1, "a", 2, "b", 3, "c");
-
-    SingleFileDatasetFactory factory = new SingleFileDatasetFactory(rootAllocator(),
-        FileFormat.PARQUET, FileSystem.LOCAL, writeSupport.getOutputFile());
-    Filter filter = new Filter(DatasetTypes.Condition.newBuilder()
-        .setRoot(DatasetTypes.TreeNode.newBuilder()
-            .setCpNode(DatasetTypes.ComparisonNode.newBuilder()
-                .setOpName("equal")
-                .setLeftArg(
-                    DatasetTypes.TreeNode.newBuilder().setFieldNode(
-                        DatasetTypes.FieldNode.newBuilder().setName("id").build()).build())
-                .setRightArg(
-                    DatasetTypes.TreeNode.newBuilder().setIntNode(
-                        DatasetTypes.IntNode.newBuilder().setValue(2).build()).build())
-                .build())
-            .build())
-        .build());
-    ScanOptions options = new ScanOptions(new String[0], filter, 100);
-    Schema schema = inferResultSchemaFromFactory(factory, options);
-    List<ArrowRecordBatch> datum = collectResultFromFactory(factory, options);
-
-    assertSingleTaskProduced(factory, options);
-    assertEquals(1, datum.size());
-    checkParquetReadResult(schema, writeSupport.getRecordListBuilder().createRecordList(2, "b"), datum);
-
-    AutoCloseables.close(datum);
-  }
-
-  @Test
   public void testParquetBatchSize() throws Exception {
     ParquetWriteSupport writeSupport = ParquetWriteSupport.writeTempFile(AVRO_SCHEMA_USER, TMP.newFolder(),
         1, "a", 2, "b", 3, "c");
 
-    ScanOptions options = new ScanOptions(new String[0], Filter.EMPTY, 1);
+    ScanOptions options = new ScanOptions(new String[0], 1);
     SingleFileDatasetFactory factory = new SingleFileDatasetFactory(rootAllocator(),
         FileFormat.PARQUET, FileSystem.LOCAL, writeSupport.getOutputFile());
     Schema schema = inferResultSchemaFromFactory(factory, options);
@@ -181,10 +146,6 @@ public class TestSingleFileDataset extends TestNativeDataset {
       }
       assertTrue(expectedRemovable.isEmpty());
     }
-  }
-
-  private ImmutableList.Builder<GenericRecord> newGenericRecordListBuilder() {
-    return new ImmutableList.Builder<>();
   }
 
   private org.apache.avro.Schema truncateAvroSchema(org.apache.avro.Schema schema, int from, int to) {
