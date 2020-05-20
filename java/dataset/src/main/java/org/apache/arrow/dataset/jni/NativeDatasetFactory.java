@@ -18,6 +18,7 @@
 package org.apache.arrow.dataset.jni;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.arrow.dataset.source.DatasetFactory;
 import org.apache.arrow.memory.BufferAllocator;
@@ -28,6 +29,7 @@ import org.apache.arrow.vector.util.SchemaUtility;
  * Native implementation of {@link DatasetFactory}.
  */
 public class NativeDatasetFactory implements DatasetFactory, AutoCloseable {
+  private final AtomicBoolean closed = new AtomicBoolean(false);
   private final long datasetFactoryId;
   private final BufferAllocator allocator;
 
@@ -78,6 +80,9 @@ public class NativeDatasetFactory implements DatasetFactory, AutoCloseable {
    */
   @Override
   public void close() {
+    if (!closed.compareAndSet(false, true)) {
+      return;
+    }
     JniWrapper.get().closeDatasetFactory(datasetFactoryId);
   }
 }

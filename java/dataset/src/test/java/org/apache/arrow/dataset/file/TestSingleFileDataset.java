@@ -19,6 +19,8 @@ package org.apache.arrow.dataset.file;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.Collections;
 import java.util.LinkedList;
@@ -26,6 +28,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import org.apache.arrow.dataset.jni.NativeDataset;
+import org.apache.arrow.dataset.jni.NativeScanTask;
+import org.apache.arrow.dataset.jni.NativeScanner;
 import org.apache.arrow.dataset.jni.TestNativeDataset;
 import org.apache.arrow.dataset.scanner.ScanOptions;
 import org.apache.arrow.util.AutoCloseables;
@@ -39,6 +44,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.rules.TemporaryFolder;
 
 public class TestSingleFileDataset extends TestNativeDataset {
@@ -111,6 +117,42 @@ public class TestSingleFileDataset extends TestNativeDataset {
     assertEquals(3, datum.size());
     datum.forEach(batch -> assertEquals(1, batch.getLength()));
     checkParquetReadResult(schema, writeSupport.getWrittenRecords(), datum);
+
+    AutoCloseables.close(datum);
+  }
+
+  @Test
+  public void testCloseAgain() throws Exception {
+    ParquetWriteSupport writeSupport = ParquetWriteSupport.writeTempFile(AVRO_SCHEMA_USER, TMP.newFolder(), 1, "a");
+
+    SingleFileDatasetFactory factory = new SingleFileDatasetFactory(rootAllocator(),
+        FileFormat.PARQUET, FileSystem.LOCAL, writeSupport.getOutputFile());
+
+    assertDoesNotThrow(() -> {
+      NativeDataset dataset = factory.finish();
+      dataset.close();
+      dataset.close();
+    });
+  }
+
+  @Test
+  public void testScanAgain() throws Exception {
+    ParquetWriteSupport writeSupport = ParquetWriteSupport.writeTempFile(AVRO_SCHEMA_USER, TMP.newFolder(), 1, "a");
+
+    SingleFileDatasetFactory factory = new SingleFileDatasetFactory(rootAllocator(),
+        FileFormat.PARQUET, FileSystem.LOCAL, writeSupport.getOutputFile());
+    NativeDataset dataset = factory.finish();
+    ScanOptions options = new ScanOptions(new String[0], 100);
+    NativeScanner scanner = dataset.newScan(options);
+    List<? extends NativeScanTask> taskList1 = collect(scanner.scan());
+    List<? extends NativeScanTask> taskList2 = collect(scanner.scan());
+    NativeScanTask task1 = taskList1.get(0);
+    NativeScanTask task2 = taskList2.get(0);
+    List<ArrowRecordBatch> datum = collect(task1.execute());
+
+    UnsupportedOperationException uoe = assertThrows(UnsupportedOperationException.class, task2::execute);
+    Assertions.assertEquals("NativeScanner cannot be executed more than once. Consider creating new scanner instead",
+        uoe.getMessage());
 
     AutoCloseables.close(datum);
   }

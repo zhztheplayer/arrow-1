@@ -56,7 +56,7 @@ public abstract class TestDataset {
     final Dataset dataset = factory.finish();
     final Scanner scanner = dataset.newScan(options);
     return stream(scanner.scan())
-        .flatMap(t -> stream(t.scan()))
+        .flatMap(t -> stream(t.execute()))
         .collect(Collectors.toList());
   }
 

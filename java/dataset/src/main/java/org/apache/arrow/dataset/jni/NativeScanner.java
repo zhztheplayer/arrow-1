@@ -18,11 +18,21 @@
 package org.apache.arrow.dataset.jni;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import org.apache.arrow.dataset.scanner.ScanTask;
 import org.apache.arrow.dataset.scanner.Scanner;
+import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.memory.BaseAllocator;
+import org.apache.arrow.memory.BufferLedger;
+import org.apache.arrow.memory.NativeUnderlingMemory;
+import org.apache.arrow.memory.Ownerships;
+import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
+import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.arrow.vector.util.SchemaUtility;
 
@@ -31,27 +41,77 @@ import org.apache.arrow.vector.util.SchemaUtility;
  * {@link NativeScanTask}, which is internally a combination of all scan task instances returned by the
  * native scanner.
  */
-public class NativeScanner implements Scanner {
+public class NativeScanner implements Scanner, AutoCloseable {
 
+  private final AtomicBoolean closed = new AtomicBoolean(false);
+  private final AtomicBoolean executed = new AtomicBoolean(false);
   private final NativeContext context;
   private final long scannerId;
-  private final AtomicBoolean closed = new AtomicBoolean(false);
 
   public NativeScanner(NativeContext context, long scannerId) {
     this.context = context;
     this.scannerId = scannerId;
   }
 
-  NativeContext getContext() {
-    return context;
-  }
+  ScanTask.BatchIterator execute() {
+    if (!executed.compareAndSet(false, true)) {
+      throw new UnsupportedOperationException("NativeScanner cannot be executed more than once. Consider creating " +
+          "new scanner instead");
+    }
+    return new ScanTask.BatchIterator() {
+      private ArrowRecordBatch peek = null;
 
-  long getId() {
-    return scannerId;
+      @Override
+      public void close() {
+        NativeScanner.this.close();
+      }
+
+      @Override
+      public boolean hasNext() {
+        if (peek != null) {
+          return true;
+        }
+        NativeRecordBatchHandle handle = JniWrapper.get().nextRecordBatch(scannerId);
+        if (handle == null) {
+          return false;
+        }
+        final ArrayList<ArrowBuf> buffers = new ArrayList<>();
+        for (NativeRecordBatchHandle.Buffer buffer : handle.getBuffers()) {
+          final BaseAllocator allocator = context.getAllocator();
+          final NativeUnderlingMemory am = new NativeUnderlingMemory(allocator,
+              (int) buffer.size, buffer.nativeInstanceId, buffer.memoryAddress);
+          final BufferLedger ledger = Ownerships.get().takeOwnership(allocator, am);
+          ArrowBuf buf = new ArrowBuf(ledger, null, (int) buffer.size, buffer.memoryAddress, false);
+          buffers.add(buf);
+        }
+
+        try {
+          peek = new ArrowRecordBatch((int) handle.getNumRows(), handle.getFields().stream()
+              .map(field -> new ArrowFieldNode((int) field.length, (int) field.nullCount))
+              .collect(Collectors.toList()), buffers);
+          return true;
+        } finally {
+          buffers.forEach(buffer -> buffer.getReferenceManager().release());
+        }
+      }
+
+      @Override
+      public ArrowRecordBatch next() {
+        if (!hasNext()) {
+          throw new NoSuchElementException();
+        }
+
+        try {
+          return peek;
+        } finally {
+          peek = null;
+        }
+      }
+    };
   }
 
   @Override
-  public Iterable<? extends ScanTask> scan() {
+  public Iterable<? extends NativeScanTask> scan() {
     return Collections.singletonList(new NativeScanTask(this));
   }
 

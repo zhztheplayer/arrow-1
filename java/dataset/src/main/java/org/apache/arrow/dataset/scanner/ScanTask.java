@@ -31,7 +31,7 @@ public interface ScanTask {
   /**
    * Creates and returns a {@link BatchIterator} instance.
    */
-  BatchIterator scan();
+  BatchIterator execute();
 
   /**
    * The iterator implementation for {@link org.apache.arrow.vector.ipc.message.ArrowRecordBatch}s.

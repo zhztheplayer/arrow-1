@@ -17,6 +17,7 @@
 
 package org.apache.arrow.dataset.file;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -41,5 +42,15 @@ public class TestSingleFileDatasetFactory {
           FileFormat.PARQUET, FileSystem.NONE, "NON_EXIST_FILE");
     });
     assertEquals("illegal file system id: -1", e.getMessage());
+  }
+
+  @Test
+  public void testCloseAgain() {
+    assertDoesNotThrow(() -> {
+      SingleFileDatasetFactory factory = new SingleFileDatasetFactory(new RootAllocator(Long.MAX_VALUE),
+          FileFormat.PARQUET, FileSystem.LOCAL, "NON_EXIST_FILE");
+      factory.close();
+      factory.close();
+    });
   }
 }
