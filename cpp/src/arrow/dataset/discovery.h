@@ -216,6 +216,16 @@ class ARROW_DS_EXPORT FileSystemDatasetFactory : public DatasetFactory {
       std::shared_ptr<fs::FileSystem> filesystem, fs::FileSelector selector,
       std::shared_ptr<FileFormat> format, FileSystemFactoryOptions options);
 
+  /// \brief Build a FileSystemDatasetFactory from an uri including filesystem
+  /// information.
+  ///
+  /// \param[in] uri passed to FileSystemDataset
+  /// \param[in] format passed to FileSystemDataset
+  /// \param[in] options see FileSystemFactoryOptions for more information.
+  static Result<std::shared_ptr<DatasetFactory>> Make(std::string uri,
+                                                      std::shared_ptr<FileFormat> format,
+                                                      FileSystemFactoryOptions options);
+
   Result<std::vector<std::shared_ptr<Schema>>> InspectSchemas(
       InspectOptions options) override;
 
@@ -237,28 +247,6 @@ class ARROW_DS_EXPORT FileSystemDatasetFactory : public DatasetFactory {
   std::shared_ptr<fs::FileSystem> fs_;
   std::shared_ptr<FileFormat> format_;
   FileSystemFactoryOptions options_;
-};
-
-class ARROW_DS_EXPORT SingleFileDatasetFactory : public DatasetFactory {
- public:
-  static Result<std::shared_ptr<DatasetFactory>> Make(std::string path,
-                                                      std::shared_ptr<fs::FileSystem> fs,
-                                                      std::shared_ptr<FileFormat> format);
-
-  Result<std::vector<std::shared_ptr<Schema>>> InspectSchemas(
-      InspectOptions options) override;
-
-  Result<std::shared_ptr<Dataset>> Finish(FinishOptions options) override;
-
- protected:
-  SingleFileDatasetFactory(std::shared_ptr<FileSource> file,
-                           std::shared_ptr<fs::FileSystem> fs,
-                           std::shared_ptr<FileFormat> format);
-
- private:
-  std::shared_ptr<FileSource> file_;
-  std::shared_ptr<fs::FileSystem> fs_;
-  std::shared_ptr<FileFormat> format_;
 };
 
 }  // namespace dataset

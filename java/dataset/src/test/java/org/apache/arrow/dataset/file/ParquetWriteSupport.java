@@ -18,6 +18,7 @@
 package org.apache.arrow.dataset.file;
 
 import java.io.File;
+import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -37,6 +38,7 @@ import org.apache.parquet.hadoop.ParquetWriter;
 class ParquetWriteSupport implements AutoCloseable {
 
   private final String path;
+  private final String uri;
   private final ParquetWriter<GenericRecord> writer;
   private final Schema avroSchema;
   private final List<GenericRecord> writtenRecords = new ArrayList<>();
@@ -46,6 +48,7 @@ class ParquetWriteSupport implements AutoCloseable {
   public ParquetWriteSupport(String schemaName, File outputFolder) throws Exception {
     avroSchema = readSchemaFromFile(schemaName);
     path = outputFolder.getPath() + File.separator + "generated.parquet";
+    uri = "file://" + path;
     writer = AvroParquetWriter.<GenericRecord>builder(new org.apache.hadoop.fs.Path(path))
         .withSchema(avroSchema)
         .build();
@@ -81,8 +84,8 @@ class ParquetWriteSupport implements AutoCloseable {
     writer.write(record);
   }
 
-  public String getOutputFile() {
-    return path;
+  public String getOutputURI() {
+    return uri;
   }
 
   public Schema getAvroSchema() {

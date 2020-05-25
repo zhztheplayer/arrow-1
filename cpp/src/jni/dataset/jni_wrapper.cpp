@@ -166,23 +166,6 @@ arrow::Result<std::shared_ptr<arrow::dataset::FileFormat>> GetFileFormat(jint id
   }
 }
 
-arrow::Result<std::shared_ptr<arrow::fs::FileSystem>> GetFileSystem(
-    jint id, std::string path, std::string* out_path) {
-  switch (id) {
-    case 0:
-      *out_path = path;
-      return std::make_shared<arrow::fs::LocalFileSystem>();
-    case 1: {
-      ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::fs::FileSystem> ret,
-                            arrow::fs::FileSystemFromUri(path, out_path))
-      return ret;
-    }
-    default:
-      std::string error_message = "illegal file system id: " + std::to_string(id);
-      return arrow::Status::Invalid(error_message);
-  }
-}
-
 std::string JStringToCString(JNIEnv* env, jstring string) {
   if (string == nullptr) {
     return std::string();
@@ -498,20 +481,19 @@ JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_releaseBuffe
 
 /*
  * Class:     org_apache_arrow_dataset_file_JniWrapper
- * Method:    makeSingleFileDatasetFactory
+ * Method:    makeFileSystemDatasetFactory
  * Signature: (Ljava/lang/String;II)J
  */
 JNIEXPORT jlong JNICALL
-Java_org_apache_arrow_dataset_file_JniWrapper_makeSingleFileDatasetFactory(
-    JNIEnv* env, jobject, jstring path, jint file_format_id, jint file_system_id) {
+Java_org_apache_arrow_dataset_file_JniWrapper_makeFileSystemDatasetFactory(
+    JNIEnv* env, jobject, jstring uri, jint file_format_id) {
   JNI_METHOD_START
   std::shared_ptr<arrow::dataset::FileFormat> file_format =
       JniGetOrThrow(GetFileFormat(file_format_id));
-  std::string out_path;
-  std::shared_ptr<arrow::fs::FileSystem> fs = JniGetOrThrow(
-      GetFileSystem(file_system_id, JStringToCString(env, path), &out_path));
-  std::shared_ptr<arrow::dataset::DatasetFactory> d = JniGetOrThrow(
-      arrow::dataset::SingleFileDatasetFactory::Make(out_path, fs, file_format));
+  arrow::dataset::FileSystemFactoryOptions options;
+  std::shared_ptr<arrow::dataset::DatasetFactory> d =
+      JniGetOrThrow(arrow::dataset::FileSystemDatasetFactory::Make(
+          JStringToCString(env, uri), file_format, options));
   return CreateNativeRef(d);
   JNI_METHOD_END(-1L)
 }

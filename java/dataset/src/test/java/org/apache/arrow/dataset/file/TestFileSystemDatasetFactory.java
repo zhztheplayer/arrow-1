@@ -24,13 +24,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.apache.arrow.memory.RootAllocator;
 import org.junit.Test;
 
-public class TestSingleFileDatasetFactory {
+public class TestFileSystemDatasetFactory {
 
   @Test
   public void testErrorHandling1() {
     RuntimeException e = assertThrows(RuntimeException.class, () -> {
-      new SingleFileDatasetFactory(new RootAllocator(Long.MAX_VALUE),
-          FileFormat.NONE, FileSystem.LOCAL, "NON_EXIST_FILE");
+      new FileSystemDatasetFactory(new RootAllocator(Long.MAX_VALUE),
+          FileFormat.NONE, "NON_EXIST_FILE");
     });
     assertEquals("illegal file format id: -1", e.getMessage());
   }
@@ -38,8 +38,8 @@ public class TestSingleFileDatasetFactory {
   @Test
   public void testErrorHandling2() {
     RuntimeException e = assertThrows(RuntimeException.class, () -> {
-      new SingleFileDatasetFactory(new RootAllocator(Long.MAX_VALUE),
-          FileFormat.PARQUET, FileSystem.NONE, "NON_EXIST_FILE");
+      new FileSystemDatasetFactory(new RootAllocator(Long.MAX_VALUE),
+          FileFormat.PARQUET, "NON_EXIST_FILE");
     });
     assertEquals("illegal file system id: -1", e.getMessage());
   }
@@ -47,8 +47,8 @@ public class TestSingleFileDatasetFactory {
   @Test
   public void testCloseAgain() {
     assertDoesNotThrow(() -> {
-      SingleFileDatasetFactory factory = new SingleFileDatasetFactory(new RootAllocator(Long.MAX_VALUE),
-          FileFormat.PARQUET, FileSystem.LOCAL, "NON_EXIST_FILE");
+      FileSystemDatasetFactory factory = new FileSystemDatasetFactory(new RootAllocator(Long.MAX_VALUE),
+          FileFormat.PARQUET, "NON_EXIST_FILE");
       factory.close();
       factory.close();
     });
