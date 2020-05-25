@@ -27,28 +27,19 @@ import org.junit.Test;
 public class TestFileSystemDatasetFactory {
 
   @Test
-  public void testErrorHandling1() {
+  public void testErrorHandling() {
     RuntimeException e = assertThrows(RuntimeException.class, () -> {
       new FileSystemDatasetFactory(new RootAllocator(Long.MAX_VALUE),
-          FileFormat.NONE, "NON_EXIST_FILE");
+          FileFormat.NONE, "file:///NON_EXIST_FILE");
     });
     assertEquals("illegal file format id: -1", e.getMessage());
-  }
-
-  @Test
-  public void testErrorHandling2() {
-    RuntimeException e = assertThrows(RuntimeException.class, () -> {
-      new FileSystemDatasetFactory(new RootAllocator(Long.MAX_VALUE),
-          FileFormat.PARQUET, "NON_EXIST_FILE");
-    });
-    assertEquals("illegal file system id: -1", e.getMessage());
   }
 
   @Test
   public void testCloseAgain() {
     assertDoesNotThrow(() -> {
       FileSystemDatasetFactory factory = new FileSystemDatasetFactory(new RootAllocator(Long.MAX_VALUE),
-          FileFormat.PARQUET, "NON_EXIST_FILE");
+          FileFormat.PARQUET, "file:///NON_EXIST_FILE");
       factory.close();
       factory.close();
     });
