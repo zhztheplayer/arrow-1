@@ -23,32 +23,55 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Set;
 
 /**
  * The JniLoader for Datasets API's native implementation.
  */
 public final class JniLoader {
-  private static final JniLoader INSTANCE = new JniLoader();
-  private static final List<String> LIBRARY_NAMES = Collections.singletonList("arrow_dataset_jni");
 
-  private AtomicBoolean loaded = new AtomicBoolean(false);
+  private static final JniLoader INSTANCE = new JniLoader(Collections.singletonList("arrow_dataset_jni"));
 
   public static JniLoader get() {
     return INSTANCE;
   }
 
-  private JniLoader() {
+  private final Set<String> librariesToLoad;
+
+  private JniLoader(List<String> libraryNames) {
+    librariesToLoad = new HashSet<>(libraryNames);
+  }
+
+  private boolean finished() {
+    return librariesToLoad.isEmpty();
   }
 
   /**
    * If required JNI libraries are not loaded, then load them.
    */
   public void ensureLoaded() {
-    if (loaded.compareAndSet(false, true)) {
-      LIBRARY_NAMES.forEach(this::load);
+    if (finished()) {
+      return;
+    }
+    loadRemaining();
+  }
+
+  private synchronized void loadRemaining() {
+    // The method is protected by a mutex via synchronized, if more than one thread race to call
+    // loadRemaining, at same time only one will do the actual loading and the others will wait for
+    // the mutex to be acquired then check on the remaining list: if there are libraries that were not
+    // successfully loaded then the mutex owner will try to load them again.
+    if (finished()) {
+      return;
+    }
+    List<String> libs = new ArrayList<>(librariesToLoad);
+    for (String lib : libs) {
+      load(lib);
+      librariesToLoad.remove(lib);
     }
   }
 
