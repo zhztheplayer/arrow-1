@@ -55,15 +55,29 @@ public abstract class TestDataset {
   protected List<ArrowRecordBatch> collectResultFromFactory(DatasetFactory factory, ScanOptions options) {
     final Dataset dataset = factory.finish();
     final Scanner scanner = dataset.newScan(options);
-    return stream(scanner.scan())
+    List<ArrowRecordBatch> ret = stream(scanner.scan())
         .flatMap(t -> stream(t.execute()))
         .collect(Collectors.toList());
+    try {
+      scanner.close();
+      dataset.close();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+    return ret;
   }
 
   protected Schema inferResultSchemaFromFactory(DatasetFactory factory, ScanOptions options) {
     final Dataset dataset = factory.finish();
     final Scanner scanner = dataset.newScan(options);
-    return scanner.schema();
+    Schema ret = scanner.schema();
+    try {
+      scanner.close();
+      dataset.close();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+    return ret;
   }
 
   protected <T> Stream<T> stream(Iterable<T> iterable) {

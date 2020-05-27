@@ -153,8 +153,8 @@ public class TestFileSystemDataset extends TestNativeDataset {
     UnsupportedOperationException uoe = assertThrows(UnsupportedOperationException.class, task2::execute);
     Assertions.assertEquals("NativeScanner cannot be executed more than once. Consider creating new scanner instead",
         uoe.getMessage());
-
     AutoCloseables.close(datum);
+    AutoCloseables.close(scanner, dataset, factory);
   }
 
   private void checkParquetReadResult(Schema schema, List<GenericRecord> expected, List<ArrowRecordBatch> actual) {

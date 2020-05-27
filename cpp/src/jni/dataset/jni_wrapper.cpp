@@ -26,17 +26,25 @@
 #include "org_apache_arrow_dataset_file_JniWrapper.h"
 #include "org_apache_arrow_dataset_jni_JniWrapper.h"
 
+static JavaVM* java_vm;
+
 static jclass illegal_access_exception_class;
 static jclass illegal_argument_exception_class;
 static jclass runtime_exception_class;
 
+static jclass object_class;
 static jclass record_batch_handle_class;
 static jclass record_batch_handle_field_class;
 static jclass record_batch_handle_buffer_class;
+static jclass base_memory_pool_class;
 
+static jmethodID object_to_string;
 static jmethodID record_batch_handle_constructor;
 static jmethodID record_batch_handle_field_constructor;
 static jmethodID record_batch_handle_buffer_constructor;
+static jmethodID base_memory_pool_allocate;
+static jmethodID base_memory_pool_reallocate;
+static jmethodID base_memory_pool_free;
 
 static jint JNI_VERSION = JNI_VERSION_1_6;
 
@@ -100,6 +108,9 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     return JNI_ERR;
   }
   JNI_METHOD_START
+  java_vm = vm;
+  object_class =
+      CreateGlobalClassReference(env, "Ljava/lang/Object;");
   illegal_access_exception_class =
       CreateGlobalClassReference(env, "Ljava/lang/IllegalAccessException;");
   illegal_argument_exception_class =
@@ -119,7 +130,13 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
       CreateGlobalClassReference(env,
                                  "Lorg/apache/arrow/"
                                  "dataset/jni/NativeRecordBatchHandle$Buffer;");
+  base_memory_pool_class =
+      CreateGlobalClassReference(env,
+                                 "Lorg/apache/arrow/"
+                                 "dataset/jni/BaseMemoryPool;");
 
+  object_to_string = JniGetOrThrow(
+      GetMethodID(env, object_class, "toString", "()Ljava/lang/String;"));
   record_batch_handle_constructor =
       JniGetOrThrow(GetMethodID(env, record_batch_handle_class, "<init>",
                                 "(J[Lorg/apache/arrow/dataset/"
@@ -130,6 +147,12 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
       JniGetOrThrow(GetMethodID(env, record_batch_handle_field_class, "<init>", "(JJ)V"));
   record_batch_handle_buffer_constructor = JniGetOrThrow(
       GetMethodID(env, record_batch_handle_buffer_class, "<init>", "(JJJJ)V"));
+  base_memory_pool_allocate =
+      JniGetOrThrow(GetMethodID(env, base_memory_pool_class, "allocate", "(J)J"));
+  base_memory_pool_reallocate =
+      JniGetOrThrow(GetMethodID(env, base_memory_pool_class, "reallocate", "(JJJ)J"));
+  base_memory_pool_free =
+      JniGetOrThrow(GetMethodID(env, base_memory_pool_class, "free", "(JJ)V"));
 
   return JNI_VERSION;
   JNI_METHOD_END(JNI_ERR)
@@ -138,12 +161,16 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 void JNI_OnUnload(JavaVM* vm, void* reserved) {
   JNIEnv* env;
   vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION);
+  JNI_METHOD_START
+  env->DeleteGlobalRef(object_class);
   env->DeleteGlobalRef(illegal_access_exception_class);
   env->DeleteGlobalRef(illegal_argument_exception_class);
   env->DeleteGlobalRef(runtime_exception_class);
   env->DeleteGlobalRef(record_batch_handle_class);
   env->DeleteGlobalRef(record_batch_handle_field_class);
   env->DeleteGlobalRef(record_batch_handle_buffer_class);
+  env->DeleteGlobalRef(base_memory_pool_class);
+  JNI_METHOD_END()
 }
 
 std::shared_ptr<arrow::Schema> SchemaFromColumnNames(
@@ -287,6 +314,88 @@ JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeDataset
   JNI_METHOD_END()
 }
 
+class BridgedMemoryPool : public arrow::MemoryPool {
+ public:
+  BridgedMemoryPool(jobject memory_pool) {
+    this->memory_pool_ = JniGetOrThrow(GetJNIEnv())->NewGlobalRef(memory_pool);
+  }
+
+  ~BridgedMemoryPool() override {
+    JniGetOrThrow(GetJNIEnv())->DeleteGlobalRef(memory_pool_);
+  }
+
+  arrow::Status Allocate(int64_t size, uint8_t **out) override {
+    ARROW_ASSIGN_OR_RAISE(JNIEnv* env, GetJNIEnv())
+    jlong address = env->CallLongMethod(memory_pool_, base_memory_pool_allocate, size);
+    if (env->ExceptionCheck()) {
+      jthrowable t = env->ExceptionOccurred();
+      env->ExceptionClear();
+      jstring message = (jstring) env->CallObjectMethod(t, object_to_string);
+      return arrow::Status::Invalid("Error occurred invoking Java method: ",
+          JStringToCString(env, message));
+    }
+    *out = reinterpret_cast<uint8_t *>(address);
+    stats_.UpdateAllocatedBytes(size);
+    return arrow::Status::OK();
+  }
+
+  arrow::Status Reallocate(int64_t old_size, int64_t new_size, uint8_t **ptr) override {
+    ARROW_ASSIGN_OR_RAISE(JNIEnv* env, GetJNIEnv())
+    jlong newAddress =
+        env->CallLongMethod(memory_pool_, base_memory_pool_reallocate,
+                             reinterpret_cast<jlong>(*ptr), old_size, new_size);
+    if (env->ExceptionCheck()) {
+      jthrowable t = env->ExceptionOccurred();
+      env->ExceptionClear();
+      jstring message = (jstring) env->CallObjectMethod(t, object_to_string);
+      return arrow::Status::Invalid("Error occurred invoking Java method: ",
+                                    JStringToCString(env, message));
+    }
+    *ptr = reinterpret_cast<uint8_t *>(newAddress);
+    stats_.UpdateAllocatedBytes(new_size - old_size);
+    return arrow::Status::OK();
+  }
+
+  void Free(uint8_t *buffer, int64_t size) override {
+    // status return is not supported here. use JniGetOrThrow instead.
+    JNIEnv *env = JniGetOrThrow(GetJNIEnv());
+    env->CallVoidMethod(memory_pool_, base_memory_pool_free,
+                         reinterpret_cast<jlong>(buffer), size);
+    if (env->ExceptionCheck()) {
+      jthrowable t = env->ExceptionOccurred();
+      env->ExceptionClear();
+      jstring message = (jstring) env->CallObjectMethod(t, object_to_string);
+      JniThrow("Error occurred invoking Java method: " + JStringToCString(env, message));
+    }
+    stats_.UpdateAllocatedBytes(-size);
+  }
+
+  int64_t bytes_allocated() const override {
+    return stats_.bytes_allocated();
+  }
+
+  int64_t max_memory() const override {
+    return stats_.max_memory();
+  }
+
+  std::string backend_name() const override {
+    return "bridged";
+  }
+
+ private:
+  jobject memory_pool_;
+  arrow::internal::MemoryPoolStats stats_;
+
+  arrow::Result<JNIEnv*> GetJNIEnv() {
+    JNIEnv* env;
+    jint status = java_vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION);
+    if (status == JNI_EDETACHED) {
+      return arrow::Status::Invalid("JNI has detached from current thread");
+    }
+    return env;
+  }
+};
+
 /// \class DisposableScannerAdaptor
 /// \brief An adaptor that iterates over a Scanner instance then returns RecordBatches
 /// directly.
@@ -299,15 +408,18 @@ JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_closeDataset
 class DisposableScannerAdaptor {
  public:
   DisposableScannerAdaptor(std::shared_ptr<arrow::dataset::Scanner> scanner,
-                           arrow::dataset::ScanTaskIterator task_itr) {
+      arrow::dataset::ScanTaskIterator task_itr,
+      std::shared_ptr<BridgedMemoryPool> pool) {
     this->scanner_ = std::move(scanner);
     this->task_itr_ = std::move(task_itr);
+    this->pool_ = std::move(pool);
   }
 
   static arrow::Result<std::shared_ptr<DisposableScannerAdaptor>> Create(
-      std::shared_ptr<arrow::dataset::Scanner> scanner) {
+      std::shared_ptr<arrow::dataset::Scanner> scanner,
+      std::shared_ptr<BridgedMemoryPool> pool) {
     ARROW_ASSIGN_OR_RAISE(arrow::dataset::ScanTaskIterator task_itr, scanner->Scan())
-    return std::make_shared<DisposableScannerAdaptor>(scanner, std::move(task_itr));
+    return std::make_shared<DisposableScannerAdaptor>(scanner, std::move(task_itr), pool);
   }
 
   arrow::Result<std::shared_ptr<arrow::RecordBatch>> Next() {
@@ -328,9 +440,14 @@ class DisposableScannerAdaptor {
 
   const std::shared_ptr<arrow::dataset::Scanner>& GetScanner() const { return scanner_; }
 
+  const std::shared_ptr<BridgedMemoryPool>& GetPool() const {
+    return pool_;
+  }
+
  protected:
-  arrow::dataset::ScanTaskIterator task_itr_;
+  std::shared_ptr<BridgedMemoryPool> pool_;
   std::shared_ptr<arrow::dataset::Scanner> scanner_;
+  arrow::dataset::ScanTaskIterator task_itr_;
   std::shared_ptr<arrow::dataset::ScanTask> current_task_ = nullptr;
   arrow::RecordBatchIterator current_batch_itr_ =
       arrow::MakeEmptyIterator<std::shared_ptr<arrow::RecordBatch>>();
@@ -354,17 +471,21 @@ class DisposableScannerAdaptor {
 /*
  * Class:     org_apache_arrow_dataset_jni_JniWrapper
  * Method:    createScanner
- * Signature: (J[Ljava/lang/String;[BJ)J
+ * Signature: (J[Ljava/lang/String;JLorg/apache/arrow/dataset/jni/BaseMemoryPool;)J
  */
 JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScanner(
-    JNIEnv* env, jobject, jlong dataset_id, jobjectArray columns, jlong batch_size) {
+    JNIEnv* env, jobject, jlong dataset_id, jobjectArray columns, jlong batch_size,
+    jobject memory_pool) {
   JNI_METHOD_START
   std::shared_ptr<arrow::dataset::ScanContext> context =
       std::make_shared<arrow::dataset::ScanContext>();
+  std::shared_ptr<BridgedMemoryPool> bridged_pool =
+      std::make_shared<BridgedMemoryPool>(memory_pool);
+  context->pool = bridged_pool.get();
   std::shared_ptr<arrow::dataset::Dataset> dataset =
       RetrieveNativeInstance<arrow::dataset::Dataset>(dataset_id);
   std::shared_ptr<arrow::dataset::ScannerBuilder> scanner_builder =
-      JniGetOrThrow(dataset->NewScan());
+      JniGetOrThrow(dataset->NewScan(context));
 
   std::vector<std::string> column_vector = ToStringVector(env, columns);
   JniAssertOkOrThrow(scanner_builder->Project(column_vector));
@@ -372,7 +493,7 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScann
 
   auto scanner = JniGetOrThrow(scanner_builder->Finish());
   std::shared_ptr<DisposableScannerAdaptor> scanner_adaptor =
-      JniGetOrThrow(DisposableScannerAdaptor::Create(scanner));
+      JniGetOrThrow(DisposableScannerAdaptor::Create(scanner, bridged_pool));
   jlong id = CreateNativeRef(scanner_adaptor);
   return id;
   JNI_METHOD_END(-1L)

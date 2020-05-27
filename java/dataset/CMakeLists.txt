@@ -36,6 +36,7 @@ add_jar(
         src/main/java/org/apache/arrow/dataset/jni/JniWrapper.java
         src/main/java/org/apache/arrow/dataset/jni/NativeRecordBatchHandle.java
         src/main/java/org/apache/arrow/dataset/file/JniWrapper.java
+        src/main/java/org/apache/arrow/dataset/jni/BaseMemoryPool.java
         GENERATE_NATIVE_HEADERS arrow_dataset_java-native
         DESTINATION ${JNI_HEADERS_DIR}
 )

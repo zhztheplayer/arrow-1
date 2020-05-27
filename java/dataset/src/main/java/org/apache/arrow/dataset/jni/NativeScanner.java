@@ -27,10 +27,6 @@ import java.util.stream.Collectors;
 import org.apache.arrow.dataset.scanner.ScanTask;
 import org.apache.arrow.dataset.scanner.Scanner;
 import org.apache.arrow.memory.ArrowBuf;
-import org.apache.arrow.memory.BaseAllocator;
-import org.apache.arrow.memory.BufferLedger;
-import org.apache.arrow.memory.NativeUnderlingMemory;
-import org.apache.arrow.memory.Ownerships;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -77,11 +73,15 @@ public class NativeScanner implements Scanner {
         }
         final ArrayList<ArrowBuf> buffers = new ArrayList<>();
         for (NativeRecordBatchHandle.Buffer buffer : handle.getBuffers()) {
-          final BaseAllocator allocator = context.getAllocator();
-          final NativeUnderlingMemory am = new NativeUnderlingMemory(allocator,
-              (int) buffer.size, buffer.nativeInstanceId, buffer.memoryAddress);
-          final BufferLedger ledger = Ownerships.get().takeOwnership(allocator, am);
-          ArrowBuf buf = new ArrowBuf(ledger, null, (int) buffer.size, buffer.memoryAddress, false);
+          MemoryPool memoryPool = context.getMemoryPool();
+          if (buffer.memoryAddress == 0L) {
+            if (buffer.capacity != 0L || buffer.size != 0L) {
+              throw new IllegalStateException("Illegal empty buffer: " + buffer);
+            }
+            buffers.add(memoryPool.getEmptyBuf());
+            continue;
+          }
+          ArrowBuf buf = memoryPool.getAllocatedBuf(buffer.memoryAddress);
           buffers.add(buf);
         }
 
