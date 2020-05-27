@@ -81,7 +81,7 @@ public class NativeScanner implements Scanner, AutoCloseable {
           final NativeUnderlingMemory am = new NativeUnderlingMemory(allocator,
               (int) buffer.size, buffer.nativeInstanceId, buffer.memoryAddress);
           final BufferLedger ledger = Ownerships.get().takeOwnership(allocator, am);
-          ArrowBuf buf = new ArrowBuf(ledger, null, (int) buffer.size, buffer.memoryAddress, false);
+          ArrowBuf buf = new ArrowBuf(ledger, null, (int) buffer.size, buffer.memoryAddress);
           buffers.add(buf);
         }
 
