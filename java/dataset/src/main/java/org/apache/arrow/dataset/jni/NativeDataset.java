@@ -25,7 +25,7 @@ import org.apache.arrow.dataset.source.Dataset;
 /**
  * Native implementation of {@link Dataset}.
  */
-public class NativeDataset implements Dataset, AutoCloseable {
+public class NativeDataset implements Dataset {
 
   private final AtomicBoolean closed = new AtomicBoolean(false);
   private final NativeContext context;

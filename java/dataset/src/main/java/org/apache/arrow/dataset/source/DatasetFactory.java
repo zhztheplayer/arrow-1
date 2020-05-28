@@ -24,7 +24,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
  * schema before materializing it. Thus, the user can peek the schema for
  * data sources and decide on a unified schema.
  */
-public interface DatasetFactory {
+public interface DatasetFactory extends AutoCloseable {
 
   /**
    * Get unified schema for the resulting Dataset.

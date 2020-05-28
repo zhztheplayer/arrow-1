@@ -22,7 +22,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 /**
  * A high level interface for scanning data over datasets.
  */
-public interface Scanner {
+public interface Scanner extends AutoCloseable {
 
   /**
    * Perform the scan operation.

@@ -41,7 +41,7 @@ import org.apache.arrow.vector.util.SchemaUtility;
  * {@link NativeScanTask}, which is internally a combination of all scan task instances returned by the
  * native scanner.
  */
-public class NativeScanner implements Scanner, AutoCloseable {
+public class NativeScanner implements Scanner {
 
   private final AtomicBoolean closed = new AtomicBoolean(false);
   private final AtomicBoolean executed = new AtomicBoolean(false);
