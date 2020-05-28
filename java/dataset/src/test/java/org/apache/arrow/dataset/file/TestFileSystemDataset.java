@@ -155,6 +155,9 @@ public class TestFileSystemDataset extends TestNativeDataset {
         uoe.getMessage());
 
     AutoCloseables.close(datum);
+    AutoCloseables.close(taskList1);
+    AutoCloseables.close(taskList2);
+    AutoCloseables.close(scanner, dataset, factory);
   }
 
   private void checkParquetReadResult(Schema schema, List<GenericRecord> expected, List<ArrowRecordBatch> actual) {

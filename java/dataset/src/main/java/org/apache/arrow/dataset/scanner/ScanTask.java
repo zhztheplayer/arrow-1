@@ -26,7 +26,7 @@ import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
  * ScanTask is meant to be a unit of work to be dispatched. The implementation
  * must be thread and concurrent safe.
  */
-public interface ScanTask {
+public interface ScanTask extends AutoCloseable {
 
   /**
    * Creates and returns a {@link BatchIterator} instance.

@@ -30,6 +30,7 @@ import org.apache.arrow.dataset.scanner.Scanner;
 import org.apache.arrow.dataset.source.Dataset;
 import org.apache.arrow.dataset.source.DatasetFactory;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.util.AutoCloseables;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.junit.After;
@@ -55,14 +56,25 @@ public abstract class TestDataset {
   protected List<ArrowRecordBatch> collectResultFromFactory(DatasetFactory factory, ScanOptions options) {
     final Dataset dataset = factory.finish();
     final Scanner scanner = dataset.newScan(options);
-    return stream(scanner.scan())
+    final List<ArrowRecordBatch> ret = stream(scanner.scan())
         .flatMap(t -> stream(t.execute()))
         .collect(Collectors.toList());
+    try {
+      AutoCloseables.close(scanner, dataset);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+    return ret;
   }
 
   protected Schema inferResultSchemaFromFactory(DatasetFactory factory, ScanOptions options) {
     final Dataset dataset = factory.finish();
     final Scanner scanner = dataset.newScan(options);
+    try {
+      AutoCloseables.close(scanner, dataset);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
     return scanner.schema();
   }
 

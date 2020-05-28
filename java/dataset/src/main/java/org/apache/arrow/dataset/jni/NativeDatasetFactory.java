@@ -28,7 +28,7 @@ import org.apache.arrow.vector.util.SchemaUtility;
 /**
  * Native implementation of {@link DatasetFactory}.
  */
-public class NativeDatasetFactory implements DatasetFactory, AutoCloseable {
+public class NativeDatasetFactory implements DatasetFactory {
   private final AtomicBoolean closed = new AtomicBoolean(false);
   private final long datasetFactoryId;
   private final BufferAllocator allocator;

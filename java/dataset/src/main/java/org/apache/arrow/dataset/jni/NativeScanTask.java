@@ -24,7 +24,7 @@ import org.apache.arrow.dataset.scanner.ScanTask;
  * id via {@link JniWrapper}, thus we allow only one-time execution of method {@link #execute()}. If a re-scan
  * operation is expected, call {@link NativeDataset#newScan} to create a new scanner instance.
  */
-public class NativeScanTask implements ScanTask, AutoCloseable {
+public class NativeScanTask implements ScanTask {
   private final NativeScanner scanner;
 
   /**
