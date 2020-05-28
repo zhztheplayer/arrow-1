@@ -171,11 +171,10 @@ std::string JStringToCString(JNIEnv* env, jstring string) {
     return std::string();
   }
   jboolean copied;
-  int32_t length = env->GetStringUTFLength(string);
   const char* chars = env->GetStringUTFChars(string, &copied);
-  std::string str = std::string(chars, length);
-  // fixme calling ReleaseStringUTFChars if memory leak faced
-  return str;
+  std::string ret = strdup(chars);
+  env->ReleaseStringUTFChars(string, chars);
+  return ret;
 }
 
 std::vector<std::string> ToStringVector(JNIEnv* env, jobjectArray& str_array) {
