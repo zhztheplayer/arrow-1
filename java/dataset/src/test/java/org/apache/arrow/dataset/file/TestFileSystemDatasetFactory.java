@@ -21,6 +21,9 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import org.apache.arrow.dataset.jni.BaseMemoryPool;
+import org.apache.arrow.dataset.jni.JniWrapper;
+import org.apache.arrow.dataset.jni.MemoryPool;
 import org.apache.arrow.memory.RootAllocator;
 import org.junit.Test;
 
@@ -43,5 +46,20 @@ public class TestFileSystemDatasetFactory {
       factory.close();
       factory.close();
     });
+  }
+
+  @Test
+  public void benchmarkMemoryPools() {
+    int iteration = 1000000;
+    BaseMemoryPool pool = new MemoryPool(new RootAllocator(Long.MAX_VALUE));
+
+    long prev;
+    prev = System.nanoTime();
+    JniWrapper.get().benchSystemMemoryPool(iteration);
+    System.out.println("SystemMemoryPool: " + (System.nanoTime() - prev) / 1000000.0D);
+
+    prev = System.nanoTime();
+    JniWrapper.get().benchBridgedMemoryPool(iteration, pool);
+    System.out.println("BridgedMemoryPool: " + (System.nanoTime() - prev) / 1000000.0D);
   }
 }

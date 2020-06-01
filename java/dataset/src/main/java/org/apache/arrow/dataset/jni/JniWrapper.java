@@ -103,4 +103,9 @@ public class JniWrapper {
    */
   public native void releaseBuffer(long bufferId);
 
+
+  public native void benchSystemMemoryPool(int iteration);
+
+  public native void benchBridgedMemoryPool(int iteration, BaseMemoryPool pool);
+
 }

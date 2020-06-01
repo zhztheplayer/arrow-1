@@ -617,3 +617,36 @@ Java_org_apache_arrow_dataset_file_JniWrapper_makeFileSystemDatasetFactory(
   return CreateNativeRef(d);
   JNI_METHOD_END(-1L)
 }
+
+void bench(int iteration, arrow::MemoryPool *pool) {
+  for (int i = 0; i < iteration; i++) {
+    uint8_t *out;
+    pool->Allocate(64, &out);
+    pool->Reallocate(64, 128, &out);
+    pool->Reallocate(128, 64, &out);
+    pool->Reallocate(64, 64 * 1024 * 1024, &out);
+    pool->Free(out, 64 * 1024 * 1024);
+  }
+}
+
+/*
+ * Class:     org_apache_arrow_dataset_jni_JniWrapper
+ * Method:    benchSystemMemoryPool
+ * Signature: (I)V
+ */
+void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_benchSystemMemoryPool
+    (JNIEnv *, jobject, jint iteration) {
+  arrow::MemoryPool* pool = arrow::default_memory_pool();
+  bench(iteration, pool);
+}
+
+/*
+ * Class:     org_apache_arrow_dataset_jni_JniWrapper
+ * Method:    benchBridgedMemoryPool
+ * Signature: (ILorg/apache/arrow/dataset/jni/BaseMemoryPool;)V
+ */
+JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_benchBridgedMemoryPool
+    (JNIEnv *, jobject, jint iteration, jobject jpool) {
+  arrow::MemoryPool *pool = new BridgedMemoryPool(jpool);
+  bench(iteration, pool);
+}
