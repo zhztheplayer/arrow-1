@@ -17,6 +17,8 @@
 
 package org.apache.arrow.memory;
 
+import org.apache.arrow.util.Preconditions;
+
 /**
  * Utility class managing ownership's transferring between Native Arrow buffers and Java Arrow buffers.
  */
@@ -33,10 +35,13 @@ public class Ownerships {
   /**
    * Returned ledger's ref count is initialized or increased by 1.
    */
-  public BufferLedger takeOwnership(BaseAllocator allocator, AllocationManager allocationManager) {
-    final BufferLedger ledger = allocationManager.associate(allocator);
+  public BufferLedger takeOwnership(BufferAllocator allocator, AllocationManager allocationManager) {
+    Preconditions.checkArgument(allocator instanceof BaseAllocator,
+        "currently only instance of BaseAllocator supported");
+    final BaseAllocator baseAllocator = (BaseAllocator) allocator;
+    final BufferLedger ledger = allocationManager.associate(baseAllocator);
     long size = allocationManager.getSize();
-    boolean succeed = allocator.forceAllocate(size);
+    boolean succeed = baseAllocator.forceAllocate(size);
     if (!succeed) {
       throw new OutOfMemoryException("Target allocator is full");
     }

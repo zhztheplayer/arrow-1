@@ -18,6 +18,7 @@
 package org.apache.arrow.memory;
 
 import org.apache.arrow.dataset.jni.JniWrapper;
+import org.apache.arrow.util.Preconditions;
 
 /**
  * AllocationManager implementation for Native allocated memory.
@@ -35,12 +36,22 @@ public class NativeUnderlingMemory extends AllocationManager {
    * @param size Size of underling memory (in bytes)
    * @param nativeInstanceId ID of the native instance
    */
-  public NativeUnderlingMemory(BaseAllocator accountingAllocator, int size, long nativeInstanceId, long address) {
+  NativeUnderlingMemory(BaseAllocator accountingAllocator, int size, long nativeInstanceId, long address) {
     super(accountingAllocator);
     this.size = size;
     this.nativeInstanceId = nativeInstanceId;
     this.address = address;
     accountingAllocator.forceAllocate(size);
+  }
+
+  /**
+   * Alias to constructor that assumes specified allocator is an instance of {@link BaseAllocator}.
+   */
+  public static NativeUnderlingMemory create(BufferAllocator bufferAllocator, int size, long nativeInstanceId,
+      long address) {
+    Preconditions.checkArgument(bufferAllocator instanceof BaseAllocator,
+        "currently only instance of BaseAllocator supported");
+    return new NativeUnderlingMemory(((BaseAllocator) bufferAllocator), size, nativeInstanceId, address);
   }
 
   @Override

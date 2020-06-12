@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 import org.apache.arrow.dataset.scanner.ScanTask;
 import org.apache.arrow.dataset.scanner.Scanner;
 import org.apache.arrow.memory.ArrowBuf;
-import org.apache.arrow.memory.BaseAllocator;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.BufferLedger;
 import org.apache.arrow.memory.NativeUnderlingMemory;
 import org.apache.arrow.memory.Ownerships;
@@ -83,8 +83,8 @@ public class NativeScanner implements Scanner {
         }
         final ArrayList<ArrowBuf> buffers = new ArrayList<>();
         for (NativeRecordBatchHandle.Buffer buffer : handle.getBuffers()) {
-          final BaseAllocator allocator = context.getAllocator();
-          final NativeUnderlingMemory am = new NativeUnderlingMemory(allocator,
+          final BufferAllocator allocator = context.getAllocator();
+          final NativeUnderlingMemory am = NativeUnderlingMemory.create(allocator,
               (int) buffer.size, buffer.nativeInstanceId, buffer.memoryAddress);
           final BufferLedger ledger = Ownerships.get().takeOwnership(allocator, am);
           ArrowBuf buf = new ArrowBuf(ledger, null, (int) buffer.size, buffer.memoryAddress);
