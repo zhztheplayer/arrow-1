@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#include <arrow/array.h>
 #include <arrow/dataset/api.h>
 #include <arrow/dataset/file_base.h>
-#include <arrow/filesystem/hdfs.h>
 #include <arrow/filesystem/localfs.h>
 #include <arrow/io/api.h>
 #include <arrow/ipc/api.h>
