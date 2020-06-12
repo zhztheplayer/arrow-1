@@ -54,6 +54,9 @@ public class NativeScanner implements Scanner {
   }
 
   ScanTask.BatchIterator execute() {
+    if (closed.get()) {
+      throw new NativeInstanceClosedException();
+    }
     if (!executed.compareAndSet(false, true)) {
       throw new UnsupportedOperationException("NativeScanner cannot be executed more than once. Consider creating " +
           "new scanner instead");
@@ -68,6 +71,9 @@ public class NativeScanner implements Scanner {
 
       @Override
       public boolean hasNext() {
+        if (closed.get()) {
+          throw new NativeInstanceClosedException();
+        }
         if (peek != null) {
           return true;
         }
@@ -117,6 +123,9 @@ public class NativeScanner implements Scanner {
 
   @Override
   public Schema schema() {
+    if (closed.get()) {
+      throw new NativeInstanceClosedException();
+    }
     try {
       return SchemaUtility.deserialize(JniWrapper.get().getSchemaFromScanner(scannerId), context.getAllocator());
     } catch (IOException e) {

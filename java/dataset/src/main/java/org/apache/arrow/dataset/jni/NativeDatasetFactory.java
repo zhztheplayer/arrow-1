@@ -51,6 +51,9 @@ public class NativeDatasetFactory implements DatasetFactory {
 
   @Override
   public Schema inspect() {
+    if (closed.get()) {
+      throw new NativeInstanceClosedException();
+    }
     byte[] buffer = JniWrapper.get().inspectSchema(datasetFactoryId);
     try {
       return SchemaUtility.deserialize(buffer, allocator);
@@ -66,6 +69,9 @@ public class NativeDatasetFactory implements DatasetFactory {
 
   @Override
   public NativeDataset finish(Schema schema) {
+    if (closed.get()) {
+      throw new NativeInstanceClosedException();
+    }
     try {
       byte[] serialized = SchemaUtility.serialize(schema);
       return new NativeDataset(new NativeContext(allocator),

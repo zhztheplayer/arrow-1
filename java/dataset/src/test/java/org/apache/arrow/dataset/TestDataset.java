@@ -70,12 +70,13 @@ public abstract class TestDataset {
   protected Schema inferResultSchemaFromFactory(DatasetFactory factory, ScanOptions options) {
     final Dataset dataset = factory.finish();
     final Scanner scanner = dataset.newScan(options);
+    final Schema schema = scanner.schema();
     try {
       AutoCloseables.close(scanner, dataset);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
-    return scanner.schema();
+    return schema;
   }
 
   protected <T> Stream<T> stream(Iterable<T> iterable) {

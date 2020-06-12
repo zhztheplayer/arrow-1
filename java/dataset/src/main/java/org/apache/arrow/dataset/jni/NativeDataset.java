@@ -38,6 +38,9 @@ public class NativeDataset implements Dataset {
 
   @Override
   public NativeScanner newScan(ScanOptions options) {
+    if (closed.get()) {
+      throw new NativeInstanceClosedException();
+    }
     long scannerId = JniWrapper.get().createScanner(datasetId, options.getColumns(), options.getBatchSize());
     return new NativeScanner(context, scannerId);
   }
