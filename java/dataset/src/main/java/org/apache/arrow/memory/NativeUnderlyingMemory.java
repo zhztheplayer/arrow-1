@@ -23,7 +23,7 @@ import org.apache.arrow.util.Preconditions;
 /**
  * AllocationManager implementation for Native allocated memory.
  */
-public class NativeUnderlingMemory extends AllocationManager {
+public class NativeUnderlyingMemory extends AllocationManager {
 
   private final int size;
   private final long nativeInstanceId;
@@ -33,30 +33,33 @@ public class NativeUnderlingMemory extends AllocationManager {
    * Constructor.
    *
    * @param accountingAllocator The accounting allocator instance
-   * @param size Size of underling memory (in bytes)
+   * @param size Size of underlying memory (in bytes)
    * @param nativeInstanceId ID of the native instance
    */
-  NativeUnderlingMemory(BaseAllocator accountingAllocator, int size, long nativeInstanceId, long address) {
+  NativeUnderlyingMemory(BaseAllocator accountingAllocator, int size, long nativeInstanceId, long address) {
     super(accountingAllocator);
     this.size = size;
     this.nativeInstanceId = nativeInstanceId;
     this.address = address;
-    accountingAllocator.forceAllocate(size);
+    // pre-allocate bytes on accounting allocator
+    try (final AllocationReservation reservation = accountingAllocator.newReservation()) {
+      reservation.reserve(size);
+    } catch (Exception e) {
+      release0();
+      throw e;
+    }
   }
 
   /**
    * Alias to constructor that assumes specified allocator is an instance of {@link BaseAllocator}.
    */
-  public static NativeUnderlingMemory create(BufferAllocator bufferAllocator, int size, long nativeInstanceId,
+  public static NativeUnderlyingMemory create(BufferAllocator bufferAllocator, int size, long nativeInstanceId,
       long address) {
-    Preconditions.checkArgument(bufferAllocator instanceof BaseAllocator,
-        "currently only instance of BaseAllocator supported");
-    return new NativeUnderlingMemory(((BaseAllocator) bufferAllocator), size, nativeInstanceId, address);
+    return new NativeUnderlyingMemory(asBaseAllocator(bufferAllocator), size, nativeInstanceId, address);
   }
 
-  @Override
-  public BufferLedger associate(BaseAllocator allocator) {
-    return super.associate(allocator);
+  public BufferLedger associate(BufferAllocator allocator) {
+    return super.associate(asBaseAllocator(allocator));
   }
 
   @Override
@@ -72,5 +75,11 @@ public class NativeUnderlingMemory extends AllocationManager {
   @Override
   protected long memoryAddress() {
     return address;
+  }
+
+  private static BaseAllocator asBaseAllocator(BufferAllocator bufferAllocator) {
+    Preconditions.checkArgument(bufferAllocator instanceof BaseAllocator,
+        "currently only instance of BaseAllocator supported");
+    return ((BaseAllocator) bufferAllocator);
   }
 }

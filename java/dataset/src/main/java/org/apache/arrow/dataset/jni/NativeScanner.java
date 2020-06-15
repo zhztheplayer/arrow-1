@@ -29,8 +29,7 @@ import org.apache.arrow.dataset.scanner.Scanner;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.BufferLedger;
-import org.apache.arrow.memory.NativeUnderlingMemory;
-import org.apache.arrow.memory.Ownerships;
+import org.apache.arrow.memory.NativeUnderlyingMemory;
 import org.apache.arrow.memory.util.LargeMemoryUtil;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
@@ -86,9 +85,9 @@ public class NativeScanner implements Scanner {
         for (NativeRecordBatchHandle.Buffer buffer : handle.getBuffers()) {
           final BufferAllocator allocator = context.getAllocator();
           final int size = LargeMemoryUtil.checkedCastToInt(buffer.size);
-          final NativeUnderlingMemory am = NativeUnderlingMemory.create(allocator,
+          final NativeUnderlyingMemory am = NativeUnderlyingMemory.create(allocator,
               size, buffer.nativeInstanceId, buffer.memoryAddress);
-          final BufferLedger ledger = Ownerships.get().takeOwnership(allocator, am);
+          BufferLedger ledger = am.associate(allocator);
           ArrowBuf buf = new ArrowBuf(ledger, null, size, buffer.memoryAddress);
           buffers.add(buf);
         }
