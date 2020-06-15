@@ -22,6 +22,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 import org.apache.arrow.dataset.scanner.ScanTask;
@@ -43,10 +46,14 @@ import org.apache.arrow.vector.util.SchemaUtility;
  */
 public class NativeScanner implements Scanner {
 
-  private final AtomicBoolean closed = new AtomicBoolean(false);
   private final AtomicBoolean executed = new AtomicBoolean(false);
   private final NativeContext context;
   private final long scannerId;
+
+  private final ReadWriteLock lock = new ReentrantReadWriteLock();
+  private final Lock writeLock = lock.writeLock();
+  private final Lock readLock = lock.readLock();
+  private boolean closed = false;
 
   public NativeScanner(NativeContext context, long scannerId) {
     this.context = context;
@@ -54,8 +61,8 @@ public class NativeScanner implements Scanner {
   }
 
   ScanTask.BatchIterator execute() {
-    if (closed.get()) {
-      throw new NativeInstanceClosedException();
+    if (closed) {
+      throw new NativeInstanceReleasedException();
     }
     if (!executed.compareAndSet(false, true)) {
       throw new UnsupportedOperationException("NativeScanner cannot be executed more than once. Consider creating " +
@@ -71,13 +78,19 @@ public class NativeScanner implements Scanner {
 
       @Override
       public boolean hasNext() {
-        if (closed.get()) {
-          throw new NativeInstanceClosedException();
-        }
         if (peek != null) {
           return true;
         }
-        NativeRecordBatchHandle handle = JniWrapper.get().nextRecordBatch(scannerId);
+        final NativeRecordBatchHandle handle;
+        readLock.lock();
+        try {
+          if (closed) {
+            throw new NativeInstanceReleasedException();
+          }
+          handle = JniWrapper.get().nextRecordBatch(scannerId);
+        } finally {
+          readLock.unlock();
+        }
         if (handle == null) {
           return false;
         }
@@ -120,26 +133,38 @@ public class NativeScanner implements Scanner {
 
   @Override
   public Iterable<? extends NativeScanTask> scan() {
+    if (closed) {
+      throw new NativeInstanceReleasedException();
+    }
     return Collections.singletonList(new NativeScanTask(this));
   }
 
   @Override
   public Schema schema() {
-    if (closed.get()) {
-      throw new NativeInstanceClosedException();
-    }
+    readLock.lock();
     try {
+      if (closed) {
+        throw new NativeInstanceReleasedException();
+      }
       return SchemaUtility.deserialize(JniWrapper.get().getSchemaFromScanner(scannerId), context.getAllocator());
     } catch (IOException e) {
       throw new RuntimeException(e);
+    } finally {
+      readLock.unlock();
     }
   }
 
   @Override
   public void close() {
-    if (!closed.compareAndSet(false, true)) {
-      return;
+    writeLock.lock();
+    try {
+      if (closed) {
+        return;
+      }
+      closed = true;
+      JniWrapper.get().closeScanner(scannerId);
+    } finally {
+      writeLock.unlock();
     }
-    JniWrapper.get().closeScanner(scannerId);
   }
 }

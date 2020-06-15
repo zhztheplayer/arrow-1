@@ -20,12 +20,12 @@ package org.apache.arrow.dataset.jni;
 /**
  * Thrown if trying to operate on a native instance that is already released.
  */
-public class NativeInstanceClosedException extends RuntimeException {
-  public NativeInstanceClosedException() {
+public class NativeInstanceReleasedException extends RuntimeException {
+  public NativeInstanceReleasedException() {
     super("Native instance has been released");
   }
 
-  public NativeInstanceClosedException(String message) {
+  public NativeInstanceReleasedException(String message) {
     super(message);
   }
 }

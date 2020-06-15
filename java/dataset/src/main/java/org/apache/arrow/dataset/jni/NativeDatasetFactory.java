@@ -18,7 +18,6 @@
 package org.apache.arrow.dataset.jni;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.arrow.dataset.source.DatasetFactory;
 import org.apache.arrow.memory.BufferAllocator;
@@ -29,9 +28,10 @@ import org.apache.arrow.vector.util.SchemaUtility;
  * Native implementation of {@link DatasetFactory}.
  */
 public class NativeDatasetFactory implements DatasetFactory {
-  private final AtomicBoolean closed = new AtomicBoolean(false);
   private final long datasetFactoryId;
   private final BufferAllocator allocator;
+
+  private boolean closed = false;
 
   /**
    * Constructor.
@@ -51,10 +51,13 @@ public class NativeDatasetFactory implements DatasetFactory {
 
   @Override
   public Schema inspect() {
-    if (closed.get()) {
-      throw new NativeInstanceClosedException();
+    final byte[] buffer;
+    synchronized (this) {
+      if (closed) {
+        throw new NativeInstanceReleasedException();
+      }
+      buffer = JniWrapper.get().inspectSchema(datasetFactoryId);
     }
-    byte[] buffer = JniWrapper.get().inspectSchema(datasetFactoryId);
     try {
       return SchemaUtility.deserialize(buffer, allocator);
     } catch (IOException e) {
@@ -69,13 +72,15 @@ public class NativeDatasetFactory implements DatasetFactory {
 
   @Override
   public NativeDataset finish(Schema schema) {
-    if (closed.get()) {
-      throw new NativeInstanceClosedException();
-    }
     try {
       byte[] serialized = SchemaUtility.serialize(schema);
-      return new NativeDataset(new NativeContext(allocator),
-          JniWrapper.get().createDataset(datasetFactoryId, serialized));
+      synchronized (this) {
+        if (closed) {
+          throw new NativeInstanceReleasedException();
+        }
+        return new NativeDataset(new NativeContext(allocator),
+            JniWrapper.get().createDataset(datasetFactoryId, serialized));
+      }
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -85,10 +90,11 @@ public class NativeDatasetFactory implements DatasetFactory {
    * Close this factory by release the pointer of the native instance.
    */
   @Override
-  public void close() {
-    if (!closed.compareAndSet(false, true)) {
+  public synchronized void close() {
+    if (closed) {
       return;
     }
+    closed = true;
     JniWrapper.get().closeDatasetFactory(datasetFactoryId);
   }
 }

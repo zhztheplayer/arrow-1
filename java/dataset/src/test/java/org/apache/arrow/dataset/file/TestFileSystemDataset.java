@@ -29,10 +29,12 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.apache.arrow.dataset.jni.NativeDataset;
+import org.apache.arrow.dataset.jni.NativeInstanceReleasedException;
 import org.apache.arrow.dataset.jni.NativeScanTask;
 import org.apache.arrow.dataset.jni.NativeScanner;
 import org.apache.arrow.dataset.jni.TestNativeDataset;
 import org.apache.arrow.dataset.scanner.ScanOptions;
+import org.apache.arrow.dataset.scanner.ScanTask;
 import org.apache.arrow.util.AutoCloseables;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorLoader;
@@ -158,6 +160,50 @@ public class TestFileSystemDataset extends TestNativeDataset {
     AutoCloseables.close(taskList1);
     AutoCloseables.close(taskList2);
     AutoCloseables.close(scanner, dataset, factory);
+  }
+
+  @Test
+  public void testScanAfterClose1() throws Exception {
+    ParquetWriteSupport writeSupport = ParquetWriteSupport.writeTempFile(AVRO_SCHEMA_USER, TMP.newFolder(), 1, "a");
+
+    FileSystemDatasetFactory factory = new FileSystemDatasetFactory(rootAllocator(),
+        FileFormat.PARQUET, writeSupport.getOutputURI());
+    NativeDataset dataset = factory.finish();
+    ScanOptions options = new ScanOptions(new String[0], 100);
+    NativeScanner scanner = dataset.newScan(options);
+    scanner.close();
+    assertThrows(NativeInstanceReleasedException.class, scanner::scan);
+  }
+
+  @Test
+  public void testScanAfterClose2() throws Exception {
+    ParquetWriteSupport writeSupport = ParquetWriteSupport.writeTempFile(AVRO_SCHEMA_USER, TMP.newFolder(), 1, "a");
+
+    FileSystemDatasetFactory factory = new FileSystemDatasetFactory(rootAllocator(),
+        FileFormat.PARQUET, writeSupport.getOutputURI());
+    NativeDataset dataset = factory.finish();
+    ScanOptions options = new ScanOptions(new String[0], 100);
+    NativeScanner scanner = dataset.newScan(options);
+    List<? extends NativeScanTask> tasks = collect(scanner.scan());
+    NativeScanTask task = tasks.get(0);
+    task.close();
+    assertThrows(NativeInstanceReleasedException.class, task::execute);
+  }
+
+  @Test
+  public void testScanAfterClose3() throws Exception {
+    ParquetWriteSupport writeSupport = ParquetWriteSupport.writeTempFile(AVRO_SCHEMA_USER, TMP.newFolder(), 1, "a");
+
+    FileSystemDatasetFactory factory = new FileSystemDatasetFactory(rootAllocator(),
+        FileFormat.PARQUET, writeSupport.getOutputURI());
+    NativeDataset dataset = factory.finish();
+    ScanOptions options = new ScanOptions(new String[0], 100);
+    NativeScanner scanner = dataset.newScan(options);
+    List<? extends NativeScanTask> tasks = collect(scanner.scan());
+    NativeScanTask task = tasks.get(0);
+    ScanTask.BatchIterator iterator = task.execute();
+    task.close();
+    assertThrows(NativeInstanceReleasedException.class, iterator::hasNext);
   }
 
   private void checkParquetReadResult(Schema schema, List<GenericRecord> expected, List<ArrowRecordBatch> actual) {

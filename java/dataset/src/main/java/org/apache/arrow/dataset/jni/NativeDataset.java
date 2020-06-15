@@ -17,8 +17,6 @@
 
 package org.apache.arrow.dataset.jni;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.arrow.dataset.scanner.ScanOptions;
 import org.apache.arrow.dataset.source.Dataset;
 
@@ -27,9 +25,10 @@ import org.apache.arrow.dataset.source.Dataset;
  */
 public class NativeDataset implements Dataset {
 
-  private final AtomicBoolean closed = new AtomicBoolean(false);
   private final NativeContext context;
   private final long datasetId;
+
+  private boolean closed = false;
 
   public NativeDataset(NativeContext context, long datasetId) {
     this.context = context;
@@ -37,19 +36,20 @@ public class NativeDataset implements Dataset {
   }
 
   @Override
-  public NativeScanner newScan(ScanOptions options) {
-    if (closed.get()) {
-      throw new NativeInstanceClosedException();
+  public synchronized NativeScanner newScan(ScanOptions options) {
+    if (closed) {
+      throw new NativeInstanceReleasedException();
     }
     long scannerId = JniWrapper.get().createScanner(datasetId, options.getColumns(), options.getBatchSize());
     return new NativeScanner(context, scannerId);
   }
 
   @Override
-  public void close() {
-    if (!closed.compareAndSet(false, true)) {
+  public synchronized void close() {
+    if (closed) {
       return;
     }
+    closed = true;
     JniWrapper.get().closeDataset(datasetId);
   }
 }
