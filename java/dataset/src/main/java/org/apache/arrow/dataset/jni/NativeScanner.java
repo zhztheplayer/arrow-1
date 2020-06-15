@@ -31,6 +31,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.BufferLedger;
 import org.apache.arrow.memory.NativeUnderlingMemory;
 import org.apache.arrow.memory.Ownerships;
+import org.apache.arrow.memory.util.LargeMemoryUtil;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -84,16 +85,18 @@ public class NativeScanner implements Scanner {
         final ArrayList<ArrowBuf> buffers = new ArrayList<>();
         for (NativeRecordBatchHandle.Buffer buffer : handle.getBuffers()) {
           final BufferAllocator allocator = context.getAllocator();
+          final int size = LargeMemoryUtil.checkedCastToInt(buffer.size);
           final NativeUnderlingMemory am = NativeUnderlingMemory.create(allocator,
-              (int) buffer.size, buffer.nativeInstanceId, buffer.memoryAddress);
+              size, buffer.nativeInstanceId, buffer.memoryAddress);
           final BufferLedger ledger = Ownerships.get().takeOwnership(allocator, am);
-          ArrowBuf buf = new ArrowBuf(ledger, null, (int) buffer.size, buffer.memoryAddress);
+          ArrowBuf buf = new ArrowBuf(ledger, null, size, buffer.memoryAddress);
           buffers.add(buf);
         }
 
         try {
-          peek = new ArrowRecordBatch((int) handle.getNumRows(), handle.getFields().stream()
-              .map(field -> new ArrowFieldNode((int) field.length, (int) field.nullCount))
+          final int numRows = LargeMemoryUtil.checkedCastToInt(handle.getNumRows());
+          peek = new ArrowRecordBatch(numRows, handle.getFields().stream()
+              .map(field -> new ArrowFieldNode(field.length, field.nullCount))
               .collect(Collectors.toList()), buffers);
           return true;
         } finally {
