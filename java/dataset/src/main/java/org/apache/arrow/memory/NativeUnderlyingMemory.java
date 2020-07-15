@@ -21,7 +21,7 @@ import org.apache.arrow.dataset.jni.JniWrapper;
 import org.apache.arrow.util.Preconditions;
 
 /**
- * AllocationManager implementation for Native allocated memory.
+ * AllocationManager implementation for native allocated memory.
  */
 public class NativeUnderlyingMemory extends AllocationManager {
 
