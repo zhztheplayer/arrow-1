@@ -17,21 +17,19 @@
 
 package org.apache.arrow.dataset.file;
 
+import org.apache.arrow.dataset.jni.NativeSerializedRecordBatchIterator;
+
 /**
- * File format definitions.
+ * A short path comparing to {@link org.apache.arrow.dataset.scanner.Scanner} for being called from C++ side
+ * via JNI, to minimize JNI call overhead.
  */
-public enum FileFormat {
-  PARQUET(0),
-  CSV(1),
-  NONE(-1);
+public interface NativeScannerAdaptor {
 
-  private final int id;
-
-  FileFormat(int id) {
-    this.id = id;
-  }
-
-  public int id() {
-    return id;
-  }
+  /**
+   * Scan with the delegated scanner.
+   *
+   * @return a iterator outputting JNI-friendly flatbuffers-serialized
+   * {@link org.apache.arrow.vector.ipc.message.ArrowRecordBatch} instances.
+   */
+  NativeSerializedRecordBatchIterator scan();
 }
