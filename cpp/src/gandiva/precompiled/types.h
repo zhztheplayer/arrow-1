@@ -276,6 +276,9 @@ gdv_timestamp castTIMESTAMP_date64(gdv_date64);
 gdv_timestamp castTIMESTAMP_int64(gdv_int64);
 gdv_date64 castDATE_timestamp(gdv_timestamp);
 gdv_time32 castTIME_timestamp(gdv_timestamp timestamp_in_millis);
+gdv_timestamp convertTimestampUnit_ms(gdv_timestamp);
+gdv_timestamp convertTimestampUnit_us(gdv_timestamp);
+gdv_date32 castDATE_date64(gdv_date64 date);
 const char* castVARCHAR_timestamp_int64(int64_t, gdv_timestamp, gdv_int64, gdv_int32*);
 gdv_date64 last_day_from_timestamp(gdv_date64 millis);
 

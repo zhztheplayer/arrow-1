@@ -90,6 +90,14 @@ std::vector<NativeFunction> GetDateTimeFunctionRegistry() {
       NativeFunction("extractDay", {}, DataTypeVector{day_time_interval()}, int64(),
                      kResultNullIfNull, "extractDay_daytimeinterval"),
 
+      NativeFunction("convertTimestampUnit", {}, DataTypeVector{timestamp()}, arrow::timestamp(arrow::TimeUnit::MICRO),
+                     kResultNullIfNull, "convertTimestampUnit_ms"),
+
+      NativeFunction("convertTimestampUnit", {}, DataTypeVector{arrow::timestamp(arrow::TimeUnit::MICRO)}, timestamp(),
+                     kResultNullIfNull, "convertTimestampUnit_us"),
+
+      NativeFunction("castDATE", {}, DataTypeVector{date64()}, date32(),
+                     kResultNullIfNull, "castDATE_date64"),
       DATE_TYPES(LAST_DAY_SAFE_NULL_IF_NULL, last_day, {})};
 
   return date_time_fn_registry_;
