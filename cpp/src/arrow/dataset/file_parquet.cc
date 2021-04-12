@@ -309,18 +309,20 @@ Result<ScanTaskIterator> ParquetFileFormat::ScanFile(std::shared_ptr<ScanOptions
   auto* parquet_fragment = checked_cast<ParquetFileFragment*>(fragment);
   std::vector<int> row_groups;
 
-// FIXME REBASE: disable this feature temporarily 2021/01/26 hongze
-//
-//  // If RowGroup metadata is cached completely we can pre-filter RowGroups before opening
-//  // a FileReader, potentially avoiding IO altogether if all RowGroups are excluded due to
-//  // prior statistics knowledge. In the case where a RowGroup doesn't have statistics
-//  // metdata, it will not be excluded.
-//  if (parquet_fragment->metadata() != nullptr) {
-//    ARROW_ASSIGN_OR_RAISE(row_groups, parquet_fragment->FilterRowGroups(options->filter));
-//
-//    pre_filtered = true;
-//    if (row_groups.empty()) MakeEmpty();
-//  }
+
+  bool pre_filtered = false;
+  auto MakeEmpty = [] { return MakeEmptyIterator<std::shared_ptr<ScanTask>>(); };
+
+  // If RowGroup metadata is cached completely we can pre-filter RowGroups before opening
+  // a FileReader, potentially avoiding IO altogether if all RowGroups are excluded due to
+  // prior statistics knowledge. In the case where a RowGroup doesn't have statistics
+  // metdata, it will not be excluded.
+  if (parquet_fragment->metadata() != nullptr) {
+    ARROW_ASSIGN_OR_RAISE(row_groups, parquet_fragment->FilterRowGroups(options->filter));
+
+    pre_filtered = true;
+    if (row_groups.empty()) MakeEmpty();
+  }
 
   // Open the reader and pay the real IO cost.
 
@@ -333,7 +335,10 @@ Result<ScanTaskIterator> ParquetFileFormat::ScanFile(std::shared_ptr<ScanOptions
   // Ensure that parquet_fragment has FileMetaData
   RETURN_NOT_OK(parquet_fragment->EnsureCompleteMetadata(file_reader.get()));
 
-  ARROW_ASSIGN_OR_RAISE(row_groups, parquet_fragment->FilterRowGroups(options->filter));
+  if (!pre_filtered) {
+    ARROW_ASSIGN_OR_RAISE(row_groups, parquet_fragment->FilterRowGroups(options->filter));
+    if (row_groups.empty()) MakeEmpty();
+  }
 
   for (int i : row_groups) {
     if (i >= reader->metadata()->num_row_groups()) {
@@ -368,7 +373,7 @@ Result<ScanTaskIterator> ParquetFileFormat::ScanFile(std::shared_ptr<ScanOptions
     row_groups = random_read_selected_row_groups;
   }
   if (row_groups.empty()) {
-    return arrow::MakeEmptyIterator<std::shared_ptr<ScanTask>>();
+    return MakeEmpty();
   }
 
   auto column_projection = InferColumnProjection(*file_reader, *options);
