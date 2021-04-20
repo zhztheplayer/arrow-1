@@ -17,6 +17,11 @@
 
 package org.apache.arrow.dataset.file;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,17 +52,14 @@ import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 import org.junit.rules.TemporaryFolder;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.primitives.Primitives;
 
 public class TestFileSystemDataset extends TestNativeDataset {
 
@@ -140,9 +142,7 @@ public class TestFileSystemDataset extends TestNativeDataset {
         1, "a", 2, "b", 3, "c");
     ParquetWriteSupport.writeTempFile(AVRO_SCHEMA_USER, outputFolder,
         4, "e", 5, "f", 6, "g", 7, "h");
-    String expectedJson = "[[\"1\",\"a\"],[\"2\",\"b\"],[\"3\",\"c\"],[\"4\",\"e\"],[\"5\",\"f\"]," +
-        "[\"6\",\"g\"],[\"7\",\"h\"]]";
-
+    String expectedJsonUnordered = "[[1,\"a\"],[2,\"b\"],[3,\"c\"],[4,\"e\"],[5,\"f\"],[6,\"g\"],[7,\"h\"]]";
 
     ScanOptions options = new ScanOptions(new String[0], 1);
     FileSystemDatasetFactory factory = new FileSystemDatasetFactory(rootAllocator(), NativeMemoryPool.getDefault(),
@@ -153,7 +153,7 @@ public class TestFileSystemDataset extends TestNativeDataset {
     assertSingleTaskProduced(factory, options);
     assertEquals(7, datum.size());
     datum.forEach(batch -> assertEquals(1, batch.getLength()));
-    checkParquetReadResult(schema, expectedJson, datum);
+    checkParquetReadResult(schema, expectedJsonUnordered, datum);
 
     AutoCloseables.close(datum);
   }
@@ -264,14 +264,14 @@ public class TestFileSystemDataset extends TestNativeDataset {
   public void testMemoryAllocation() throws Exception {
     ParquetWriteSupport writeSupport = ParquetWriteSupport.writeTempFile(AVRO_SCHEMA_USER, TMP.newFolder(), 1, "a");
     FileSystemDatasetFactory factory = new FileSystemDatasetFactory(rootAllocator(), NativeMemoryPool.getDefault(),
-            FileFormat.PARQUET, writeSupport.getOutputURI());
+        FileFormat.PARQUET, writeSupport.getOutputURI());
     ScanOptions options = new ScanOptions(new String[0], 100);
     long initReservation = rootAllocator().getAllocatedMemory();
     List<ArrowRecordBatch> datum = collectResultFromFactory(factory, options);
     final long expected_diff = datum.stream()
-            .flatMapToLong(batch -> batch.getBuffers()
-                    .stream()
-                    .mapToLong(buf -> buf.getReferenceManager().getAccountedSize())).sum();
+        .flatMapToLong(batch -> batch.getBuffers()
+            .stream()
+            .mapToLong(buf -> buf.getReferenceManager().getAccountedSize())).sum();
     long reservation = rootAllocator().getAllocatedMemory();
     AutoCloseables.close(datum);
     long finalReservation = rootAllocator().getAllocatedMemory();
@@ -283,7 +283,7 @@ public class TestFileSystemDataset extends TestNativeDataset {
       throws IOException {
     final ObjectMapper json = new ObjectMapper();
     final Set<?> expectedSet = json.readValue(expectedJson, Set.class);
-    final Set<List<String>> actualSet = new HashSet<>();
+    final Set<List<Object>> actualSet = new HashSet<>();
     final int fieldCount = schema.getFields().size();
     try (VectorSchemaRoot vsr = VectorSchemaRoot.create(schema, rootAllocator())) {
       VectorLoader loader = new VectorLoader(vsr);
@@ -292,10 +292,14 @@ public class TestFileSystemDataset extends TestNativeDataset {
           loader.load(batch);
           int batchRowCount = vsr.getRowCount();
           for (int i = 0; i < batchRowCount; i++) {
-            List<String> row = new ArrayList<>();
+            List<Object> row = new ArrayList<>();
             for (int j = 0; j < fieldCount; j++) {
               Object object = vsr.getVector(j).getObject(i);
-              row.add(object.toString());
+              if (Primitives.isWrapperType(object.getClass())) {
+                row.add(object);
+              } else {
+                row.add(object.toString());
+              }
             }
             actualSet.add(row);
           }
@@ -304,7 +308,7 @@ public class TestFileSystemDataset extends TestNativeDataset {
         }
       }
     }
-    Assert.assertEquals("Mismatched data read from Parquet, actual: " + json.writeValueAsString(actualSet),
+    Assert.assertEquals("Mismatched data read from Parquet, actual: " + json.writeValueAsString(actualSet) + ";",
         expectedSet, actualSet);
   }
 
