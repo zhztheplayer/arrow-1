@@ -533,14 +533,33 @@ JNIEXPORT void JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_releaseBuffe
  */
 JNIEXPORT jlong JNICALL
 Java_org_apache_arrow_dataset_file_JniWrapper_makeFileSystemDatasetFactory(
-    JNIEnv* env, jobject, jstring uri, jint file_format_id) {
+    JNIEnv* env, jobject, jstring juri, jint file_format_id) {
   JNI_METHOD_START
   std::shared_ptr<arrow::dataset::FileFormat> file_format =
       JniGetOrThrow(GetFileFormat(file_format_id));
+  // TODO Partitioning support. Dictionary support should be done before that. See
+  // ARROW-12481.
   arrow::dataset::FileSystemFactoryOptions options;
-  std::shared_ptr<arrow::dataset::DatasetFactory> d =
+  std::string uri = JStringToCString(env, juri);
+  std::string internal_path;
+  std::shared_ptr<arrow::fs::FileSystem> filesystem =
+      JniGetOrThrow(arrow::fs::FileSystemFromUri(uri, &internal_path));
+  arrow::fs::FileInfo file_info = JniGetOrThrow(filesystem->GetFileInfo(internal_path));
+  if (file_info.IsDirectory()) {
+    arrow::fs::FileSelector selector;
+    selector.base_dir = file_info.path();
+    selector.recursive = true;
+    std::shared_ptr<arrow::dataset::DatasetFactory> factory =
+        JniGetOrThrow(arrow::dataset::FileSystemDatasetFactory::Make(
+            std::move(filesystem), std::move(selector), std::move(file_format),
+            std::move(options)));
+    return CreateNativeRef(factory);
+  }
+  // juri points to a regular file
+  std::shared_ptr<arrow::dataset::DatasetFactory> factory =
       JniGetOrThrow(arrow::dataset::FileSystemDatasetFactory::Make(
-          JStringToCString(env, uri), file_format, options));
-  return CreateNativeRef(d);
+          std::move(filesystem), {internal_path}, std::move(file_format),
+          std::move(options)));
+  return CreateNativeRef(factory);
   JNI_METHOD_END(-1L)
 }
