@@ -115,6 +115,15 @@ public class NativeDatasetTest {
   }
 
   @Test
+  public void testS3fs() {
+    String path = "s3://intel-bigdata/2020/06";
+    DatasetFactory discovery = new SingleFileDatasetFactory(
+            new RootAllocator(Long.MAX_VALUE), NativeMemoryPool.getDefault(), FileFormat.PARQUET,
+            path);
+    testDatasetFactoryEndToEnd(discovery, 1, 10, 1000);
+  }
+
+  @Test
   public void testSplitFile() {
     String path = sampleParquetLocal();
     DatasetFactory discovery = new SingleFileDatasetFactory(
