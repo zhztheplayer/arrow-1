@@ -153,6 +153,7 @@ Result<std::vector<PlatformFilename>> get_potential_libhdfs_paths() {
   ARROW_ASSIGN_OR_RAISE(auto search_paths, MakeFilenameVector({"", "."}));
 
   // Path from environment variable
+  AppendEnvVarFilename("ARROW_LIBHDFS3_DIR", &search_paths);
   AppendEnvVarFilename("HADOOP_HOME", "lib/native", &search_paths);
   AppendEnvVarFilename("ARROW_LIBHDFS_DIR", &search_paths);
 
