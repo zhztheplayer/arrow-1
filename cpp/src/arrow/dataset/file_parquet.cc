@@ -309,20 +309,18 @@ Result<ScanTaskIterator> ParquetFileFormat::ScanFile(std::shared_ptr<ScanOptions
   auto* parquet_fragment = checked_cast<ParquetFileFragment*>(fragment);
   std::vector<int> row_groups;
 
-
-  bool pre_filtered = false;
-  auto MakeEmpty = [] { return MakeEmptyIterator<std::shared_ptr<ScanTask>>(); };
-
-  // If RowGroup metadata is cached completely we can pre-filter RowGroups before opening
-  // a FileReader, potentially avoiding IO altogether if all RowGroups are excluded due to
-  // prior statistics knowledge. In the case where a RowGroup doesn't have statistics
-  // metdata, it will not be excluded.
-  if (parquet_fragment->metadata() != nullptr) {
-    ARROW_ASSIGN_OR_RAISE(row_groups, parquet_fragment->FilterRowGroups(options->filter));
-
-    pre_filtered = true;
-    if (row_groups.empty()) MakeEmpty();
-  }
+// FIXME REBASE: disable this feature temporarily 2021/01/26 hongze
+//
+//  // If RowGroup metadata is cached completely we can pre-filter RowGroups before opening
+//  // a FileReader, potentially avoiding IO altogether if all RowGroups are excluded due to
+//  // prior statistics knowledge. In the case where a RowGroup doesn't have statistics
+//  // metdata, it will not be excluded.
+//  if (parquet_fragment->metadata() != nullptr) {
+//    ARROW_ASSIGN_OR_RAISE(row_groups, parquet_fragment->FilterRowGroups(options->filter));
+//
+//    pre_filtered = true;
+//    if (row_groups.empty()) MakeEmpty();
+//  }
 
   // Open the reader and pay the real IO cost.
 
@@ -331,16 +329,46 @@ Result<ScanTaskIterator> ParquetFileFormat::ScanFile(std::shared_ptr<ScanOptions
   ARROW_ASSIGN_OR_RAISE(std::shared_ptr<parquet::arrow::FileReader> file_reader,
                         GetReader(source, options.get(), context.get()));
 
+  auto reader = file_reader->parquet_reader();
   // Ensure that parquet_fragment has FileMetaData
   RETURN_NOT_OK(parquet_fragment->EnsureCompleteMetadata(file_reader.get()));
 
-  if (!pre_filtered) {
-    ARROW_ASSIGN_OR_RAISE(row_groups, parquet_fragment->FilterRowGroups(options->filter));
-    if (row_groups.empty()) MakeEmpty();
+  ARROW_ASSIGN_OR_RAISE(row_groups, parquet_fragment->FilterRowGroups(options->filter));
+
+  for (int i : row_groups) {
+    if (i >= reader->metadata()->num_row_groups()) {
+      return Status::IndexError("trying to scan row group ", i, " but ", source.path(),
+                                " only has ", reader->metadata()->num_row_groups(),
+                                " row groups");
+    }
   }
-  
+  if (source.start_offset() != -1L) {
+    // random read
+    std::vector<int> random_read_selected_row_groups = std::vector<int>();
+    for (int i : row_groups) {
+      std::shared_ptr<parquet::ColumnChunkMetaData> leading_cc =
+          reader->RowGroup(i)->metadata()->ColumnChunk(0);
+      int64_t r_start = leading_cc->data_page_offset();
+      if (leading_cc->has_dictionary_page() &&
+          r_start > leading_cc->dictionary_page_offset()) {
+        r_start = leading_cc->dictionary_page_offset();
+      }
+      int64_t r_bytes = 0L;
+      for (int col_id = 0; col_id < reader->RowGroup(i)->metadata()->num_columns();
+           col_id++) {
+        r_bytes += reader->
+            RowGroup(i)->metadata()->ColumnChunk(col_id)->total_compressed_size();
+      }
+      int64_t midpoint = r_start + r_bytes / 2;
+      if (midpoint >= source.start_offset()
+          && midpoint < (source.start_offset() + source.length())) {
+        random_read_selected_row_groups.push_back(i);
+      }
+    }
+    row_groups = random_read_selected_row_groups;
+  }
   if (row_groups.empty()) {
-    return MakeEmpty();
+    return arrow::MakeEmptyIterator<std::shared_ptr<ScanTask>>();
   }
 
   auto column_projection = InferColumnProjection(*file_reader, *options);
@@ -447,51 +475,14 @@ Status ParquetFileFragment::EnsureCompleteMetadata(parquet::arrow::FileReader* r
   }
   physical_schema_ = std::move(schema);
 
-  auto parquet_reader = reader->parquet_reader();
-
   if (!row_groups_) {
-    auto all_row_groups = internal::Iota(reader->num_row_groups());
-    FileSource source = this->source();
-    for (int i : all_row_groups) {
-      if (i >= metadata_->num_row_groups()) {
-        return Status::IndexError("trying to scan row group ", i, " but ", source.path(),
-                                  " only has ", metadata_->num_row_groups(),
-                                  " row groups");
-      }
-    }
-    if (source.start_offset() != -1L) {
-      // random read
-      std::vector<int> random_read_selected_row_groups = std::vector<int>();
-      for (int i : all_row_groups) {
-        std::shared_ptr<parquet::ColumnChunkMetaData> leading_cc =
-            parquet_reader->RowGroup(i)->metadata()->ColumnChunk(0);
-        int64_t r_start = leading_cc->data_page_offset();
-        if (leading_cc->has_dictionary_page() &&
-            r_start > leading_cc->dictionary_page_offset()) {
-          r_start = leading_cc->dictionary_page_offset();
-        }
-        int64_t r_bytes = 0L;
-        for (int col_id = 0; col_id < parquet_reader->RowGroup(i)
-            ->metadata()->num_columns();
-             col_id++) {
-          r_bytes += parquet_reader->
-              RowGroup(i)->metadata()->ColumnChunk(col_id)->total_compressed_size();
-        }
-        int64_t midpoint = r_start + r_bytes / 2;
-        if (midpoint >= source.start_offset()
-            && midpoint < (source.start_offset() + source.length())) {
-          random_read_selected_row_groups.push_back(i);
-        }
-      }
-      row_groups_ = random_read_selected_row_groups;
-    }
+    row_groups_ = internal::Iota(reader->num_row_groups());
   }
 
   ARROW_ASSIGN_OR_RAISE(
       auto manifest,
-      GetSchemaManifest(*parquet_reader->metadata(), reader->properties()));
-
-  return SetMetadata(parquet_reader->metadata(), std::move(manifest));
+      GetSchemaManifest(*reader->parquet_reader()->metadata(), reader->properties()));
+  return SetMetadata(reader->parquet_reader()->metadata(), std::move(manifest));
 }
 
 Status ParquetFileFragment::SetMetadata(
