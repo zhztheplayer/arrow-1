@@ -41,11 +41,8 @@ public class NativeUnderlyingMemory extends AllocationManager {
     this.nativeInstanceId = nativeInstanceId;
     this.address = address;
     // pre-allocate bytes on accounting allocator
-    final AllocationListener listener = accountingAllocator.getListener();
     try (final AllocationReservation reservation = accountingAllocator.newReservation()) {
-      listener.onPreAllocation(size);
       reservation.reserve(size);
-      listener.onAllocation(size);
     } catch (Exception e) {
       release0();
       throw e;
