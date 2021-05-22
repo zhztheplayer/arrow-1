@@ -47,7 +47,7 @@ class ArrayParser::Impl {
       return Status::TypeError("Value at ordinal '", ordinal, "' is not a int64");
     }
     return document_[ordinal].GetInt64();
-  };
+  }
 
   Result<uint32_t> Length() const { return document_.GetArray().Size(); }
 
