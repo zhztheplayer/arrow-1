@@ -54,6 +54,10 @@ import org.apache.arrow.vector.ipc.message.IpcOption;
 import org.apache.arrow.vector.ipc.message.MessageMetadataResult;
 import org.apache.arrow.vector.ipc.message.MessageSerializer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.google.flatbuffers.FlatBufferBuilder;
 
 /**
@@ -65,6 +69,8 @@ import com.google.flatbuffers.FlatBufferBuilder;
  * the buffer bodies.
  */
 public class UnsafeRecordBatchSerializer {
+
+  private static final ObjectMapper JSON = new ObjectMapper();
 
   /**
    * This is in response to native arrow::Buffer instance's destructor after
@@ -118,16 +124,31 @@ public class UnsafeRecordBatchSerializer {
     }
     final RecordBatch batchMeta = (RecordBatch) metaMessage.header(new RecordBatch());
     Preconditions.checkNotNull(batchMeta);
-    if (batchMeta.buffersLength() != metaMessage.customMetadataLength()) {
+
+    if (metaMessage.customMetadataLength() != 1) {
+      throw new IllegalArgumentException("RecordBatch metadata not found");
+    }
+    final String nativeBufferRefsJson = metaMessage.customMetadata(0).value();
+    final ArrayNode nativeBufferRefs;
+    try {
+      // JSON array containing native buffer refs
+      nativeBufferRefs = (ArrayNode) JSON.readTree(nativeBufferRefsJson);
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException("Malformed JSON array: " + nativeBufferRefsJson, e);
+    }
+
+    if (batchMeta.buffersLength() != nativeBufferRefs.size()) {
       throw new IllegalArgumentException("Buffer count mismatch between metadata and native managed refs");
     }
 
     final ArrayList<ArrowBuf> buffers = new ArrayList<>();
     for (int i = 0; i < batchMeta.buffersLength(); i++) {
       final Buffer bufferMeta = batchMeta.buffers(i);
-      final KeyValue keyValue = metaMessage.customMetadata(i); // custom metadata containing native buffer refs
-      final byte[] refDecoded = Base64.getDecoder().decode(keyValue.value());
-      final long nativeBufferRef = ByteBuffer.wrap(refDecoded).order(ByteOrder.LITTLE_ENDIAN).getLong();
+      final JsonNode jsonNode = nativeBufferRefs.get(i);
+      if (!jsonNode.isLong()) {
+        throw new RuntimeException("Not a JSON long value: " + jsonNode);
+      }
+      final long nativeBufferRef = jsonNode.asLong();
       final int size = LargeMemoryUtil.checkedCastToInt(bufferMeta.length());
       final NativeUnderlyingMemory am = NativeUnderlyingMemory.create(allocator,
           size, nativeBufferRef, bufferMeta.offset());
@@ -167,24 +188,28 @@ public class UnsafeRecordBatchSerializer {
 
     final FlatBufferBuilder builder = new FlatBufferBuilder();
     List<ArrowBuf> buffers = batch.getBuffers();
-    int[] metadataOffsets = new int[buffers.size() * 2];
-    for (int i = 0, buffersSize = buffers.size(); i < buffersSize; i++) {
-      ArrowBuf buffer = buffers.get(i);
+    // here we have 2 types of refs: cleaner object ref (CO_REF) and cleaner method ref (CM_REF)
+    final List<Long> coRefs = new ArrayList<>();
+    final List<Long> cmRefs = new ArrayList<>();
+    for (ArrowBuf buffer : buffers) {
       final TransferredReferenceCleaner cleaner = new TransferredReferenceCleaner(buffer);
       // cleaner object ref
       long objectRefValue = JniWrapper.get().newJniGlobalReference(cleaner);
-      byte[] objectRefBytes = ByteBuffer.allocate(Long.BYTES).order(ByteOrder.LITTLE_ENDIAN)
-          .putLong(objectRefValue).array();
-      metadataOffsets[i * 2] = KeyValue.createKeyValue(builder, builder.createString("JAVA_BUFFER_CO_REF_" + i),
-          builder.createString(Base64.getEncoder().encodeToString(objectRefBytes)));
+      coRefs.add(objectRefValue);
       // cleaner method ref
       long methodRefValue = TransferredReferenceCleaner.NATIVE_METHOD_REF;
-      byte[] methodRefBytes = ByteBuffer.allocate(Long.BYTES).order(ByteOrder.LITTLE_ENDIAN)
-          .putLong(methodRefValue).array();
-      metadataOffsets[i * 2 + 1] =
-          KeyValue.createKeyValue(builder, builder.createString("JAVA_BUFFER_CM_REF_" + i),
-              builder.createString(Base64.getEncoder().encodeToString(methodRefBytes)));
+      cmRefs.add(methodRefValue);
     }
+    int[] metadataOffsets = new int[2];
+    try {
+      metadataOffsets[0] = KeyValue.createKeyValue(builder, builder.createString("JAVA_BUFFER_CO_REFS"),
+          builder.createString(JSON.writeValueAsString(coRefs)));
+      metadataOffsets[1] = KeyValue.createKeyValue(builder, builder.createString("JAVA_BUFFER_CM_REFS"),
+          builder.createString(JSON.writeValueAsString(cmRefs)));
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
+
     final ArrowMessage unsafeRecordMessage = new UnsafeRecordBatchMetadataMessage(batch);
     final int batchOffset = unsafeRecordMessage.writeTo(builder);
     final int customMetadataOffset = Message.createCustomMetadataVector(builder, metadataOffsets);
