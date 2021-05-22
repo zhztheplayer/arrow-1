@@ -331,9 +331,9 @@ Result<std::shared_ptr<Buffer>> SerializeMetadata(const RecordBatch& batch,
   RETURN_NOT_OK(ipc::internal::WriteRecordBatchMessage(
       batch.num_rows(), 0L, custom_metadata, nodes, buffers, options, &meta_buffer));
   // no message body is needed for JNI serialization/deserialization
-  int32_t meta_length = -1;
+  int32_t message_length = -1;
   ARROW_ASSIGN_OR_RAISE(auto stream, io::BufferOutputStream::Create(1024L));
-  RETURN_NOT_OK(ipc::WriteMessage(*meta_buffer, options, stream.get(), &meta_length));
+  RETURN_NOT_OK(ipc::WriteMessage(*meta_buffer, options, stream.get(), &message_length));
   return stream->Finish();
 }
 
