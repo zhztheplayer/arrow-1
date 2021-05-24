@@ -322,9 +322,14 @@ namespace {
 
 constexpr util::string_view kIntegerToken = "{i}";
 
-Status ValidateBasenameTemplate(util::string_view basename_template) {
+Status ValidateBasenameTemplate(const FileSystemDatasetWriteOptions& write_options) {
+  util::string_view basename_template = write_options.basename_template;
   if (basename_template.find(fs::internal::kSep) != util::string_view::npos) {
     return Status::Invalid("basename_template contained '/'");
+  }
+  if (write_options.max_partitions == 1) {
+    // token replacement is not strictly required when writing single partition
+    return Status::OK();
   }
   size_t token_start = basename_template.find(kIntegerToken);
   if (token_start == util::string_view::npos) {
@@ -385,10 +390,17 @@ class WriteQueue {
     auto dir =
         fs::internal::EnsureTrailingSlash(write_options.base_dir) + partition_expression_;
 
-    auto basename = internal::Replace(write_options.basename_template, kIntegerToken,
+    util::optional<std::string> basename;
+    auto replaced = internal::Replace(write_options.basename_template, kIntegerToken,
                                       std::to_string(index_));
-    if (!basename) {
-      return Status::Invalid("string interpolation of basename template failed");
+    if (!replaced) {
+      if (write_options.max_partitions != 1) {
+        return Status::Invalid("string interpolation of basename template failed");
+      }
+      // max_partitions = 1, use the template as the single file's name
+      basename = write_options.basename_template;
+    } else{
+      basename = std::move(replaced);
     }
 
     auto path = fs::internal::ConcatAbstractPath(dir, *basename);
@@ -504,7 +516,7 @@ Future<> WriteInternal(const ScanOptions& scan_options, WriteState& state,
 
 Status FileSystemDataset::Write(const FileSystemDatasetWriteOptions& write_options,
                                 std::shared_ptr<Scanner> scanner) {
-  RETURN_NOT_OK(ValidateBasenameTemplate(write_options.basename_template));
+  RETURN_NOT_OK(ValidateBasenameTemplate(write_options));
 
   // Things we'll un-lazy for the sake of simplicity, with the tradeoff they represent:
   //
