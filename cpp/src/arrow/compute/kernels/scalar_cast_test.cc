@@ -1041,6 +1041,17 @@ TEST(Cast, TimestampToTimestamp) {
     options.allow_time_truncate = true;
     CheckCast(will_be_truncated, coarse, options);
   }
+
+  for (auto types : {
+      TimestampTypePair{timestamp(TimeUnit::MILLI, "UTC+8"), timestamp(TimeUnit::MILLI)}
+  }) {
+    auto coarse = ArrayFromJSON(types.coarse, "[0, null, 200000000000, 1000000000, 2000000000]");
+    auto promoted =
+        ArrayFromJSON(types.fine, "[0, null, 200000000000, 1000000000, 2000000000]");
+
+    // multiply/promote
+    CheckCast(coarse, promoted);
+  }
 }
 
 TEST(Cast, TimestampZeroCopy) {

@@ -813,8 +813,16 @@ gdv_timestamp convertTimestampUnit_us(gdv_timestamp timestamp_in_micro) {
   return timestamp_in_micro / 1000;
 }
 
-gdv_date32 castDATE_date64(gdv_date64 date_in_millis) {
+gdv_date32 castDATE32_date64(gdv_date64 date_in_millis) {
   return static_cast<gdv_date32>(date_in_millis / (MILLIS_IN_DAY));
+}
+
+gdv_timestamp castTIMESTAMP_date32(gdv_date32 in_day) {
+  return static_cast<gdv_date32>(in_day * (MILLIS_IN_DAY));
+}
+
+gdv_date32 castDATE32_timestamp(gdv_timestamp timestamp_in_millis) {
+  return static_cast<gdv_date32>(timestamp_in_millis / (MILLIS_IN_DAY));
 }
 
 const char* castVARCHAR_timestamp_int64(gdv_int64 context, gdv_timestamp in,
