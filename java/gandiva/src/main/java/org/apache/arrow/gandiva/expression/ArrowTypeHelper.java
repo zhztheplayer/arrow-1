@@ -201,6 +201,10 @@ public class ArrowTypeHelper {
         // not supported
       }
     }
+    String timezone = timestampType.getTimezone();
+    if (timezone != null) {
+      builder.setTimeZone(timezone);
+    }
   }
 
   private static void initArrowTypeInterval(ArrowType.Interval interval,

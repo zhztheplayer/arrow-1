@@ -203,7 +203,8 @@ int32_t gdv_fn_populate_varlen_vector(int64_t context_ptr, int8_t* data_ptr,
   INNER(date64)                             \
   INNER(date32)                             \
   INNER(time32)                             \
-  INNER(timestamp)
+  INNER(timestamp)                          \
+  INNER(timestampusutc)
 
 // Expand inner macro for all numeric types.
 #define SHA_VAR_LEN_PARAMS(INNER) \

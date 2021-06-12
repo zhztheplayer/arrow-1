@@ -54,6 +54,9 @@ inline DataTypePtr time32() { return arrow::time32(arrow::TimeUnit::MILLI); }
 inline DataTypePtr time64() { return arrow::time64(arrow::TimeUnit::MICRO); }
 
 inline DataTypePtr timestamp() { return arrow::timestamp(arrow::TimeUnit::MILLI); }
+
+inline DataTypePtr timestampusutc() { return arrow::timestamp(arrow::TimeUnit::MICRO, "UTC"); }
+
 inline DataTypePtr decimal128() { return arrow::decimal(38, 0); }
 
 struct KeyHash {
@@ -243,7 +246,7 @@ typedef std::unordered_map<const FunctionSignature*, const NativeFunction*, KeyH
 
 // Iterate the inner macro over all date types
 #define DATE_TYPES(INNER, NAME, ALIASES) \
-  INNER(NAME, ALIASES, date64), INNER(NAME, ALIASES, timestamp)
+  INNER(NAME, ALIASES, date64), INNER(NAME, ALIASES, timestamp), INNER(NAME, ALIASES, timestampusutc)
 
 // Iterate the inner macro over all time types
 #define TIME_TYPES(INNER, NAME, ALIASES) INNER(NAME, ALIASES, time32)

@@ -45,6 +45,14 @@ bool DataTypeEquals(const DataTypePtr& left, const DataTypePtr& right) {
         return (dleft != NULL) && (dright != NULL) &&
                (dleft->byte_width() == dright->byte_width());
       }
+      case arrow::Type::TIMESTAMP: {
+        // Signature for timestamp treated the same if both are with zone or without zone.
+        auto tleft = checked_cast<arrow::TimestampType *>(left.get());
+        auto tright = checked_cast<arrow::TimestampType *>(right.get());
+        return (tleft != NULL) && (tright != NULL) &&
+            (tleft->unit() == tright->unit()) &&
+            (tleft->timezone().empty() == tleft->timezone().empty());
+      }
       default:
         return left->Equals(right);
     }

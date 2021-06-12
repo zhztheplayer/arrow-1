@@ -39,6 +39,7 @@ using gdv_date64 = int64_t;
 using gdv_date32 = int32_t;
 using gdv_time32 = int32_t;
 using gdv_timestamp = int64_t;
+using gdv_timestampusutc = int64_t;
 using gdv_utf8 = char*;
 using gdv_binary = char*;
 using gdv_day_time_interval = int64_t;

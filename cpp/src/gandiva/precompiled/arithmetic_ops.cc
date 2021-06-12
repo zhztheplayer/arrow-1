@@ -41,6 +41,7 @@ extern "C" {
   INNER(NAME, date64, OP)           \
   INNER(NAME, date32, OP)           \
   INNER(NAME, timestamp, OP)        \
+  INNER(NAME, timestampusutc, OP)        \
   INNER(NAME, time32, OP)
 
 #define NUMERIC_DATE_TYPES(INNER, NAME, OP) \
@@ -253,6 +254,7 @@ NUMERIC_TYPES(VALIDITY_OP, isnumeric, +)
   INNER(date32)              \
   INNER(date64)              \
   INNER(timestamp)           \
+  INNER(timestampusutc)      \
   INNER(time32)
 
 #define NUMERIC_BOOL_DATE_FUNCTION(INNER) \

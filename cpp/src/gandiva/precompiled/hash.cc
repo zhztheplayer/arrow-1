@@ -307,7 +307,8 @@ FORCE_INLINE gdv_int32 hash64_spark_int64_int32(gdv_int64 val, gdv_boolean is_va
   INNER(NAME, date64)                        \
   INNER(NAME, date32)                        \
   INNER(NAME, time32)                        \
-  INNER(NAME, timestamp)
+  INNER(NAME, timestamp)                     \
+  INNER(NAME, timestampusutc)
 
 NUMERIC_BOOL_DATE_TYPES(HASH32_OP, hash)
 NUMERIC_BOOL_DATE_TYPES(HASH32_OP, hash32)

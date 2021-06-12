@@ -155,19 +155,26 @@ DataTypePtr ProtoTypeToTime64(const types::ExtGandivaType& ext_type) {
 }
 
 DataTypePtr ProtoTypeToTimestamp(const types::ExtGandivaType& ext_type) {
+  arrow::TimeUnit::type unit;
   switch (ext_type.timeunit()) {
     case types::SEC:
-      return arrow::timestamp(arrow::TimeUnit::SECOND);
+      unit = arrow::TimeUnit::SECOND;
+      break;
     case types::MILLISEC:
-      return arrow::timestamp(arrow::TimeUnit::MILLI);
+      unit = arrow::TimeUnit::MILLI;
+      break;
     case types::MICROSEC:
-      return arrow::timestamp(arrow::TimeUnit::MICRO);
+      unit = arrow::TimeUnit::MICRO;
+      break;
     case types::NANOSEC:
-      return arrow::timestamp(arrow::TimeUnit::NANO);
+      unit = arrow::TimeUnit::NANO;
+      break;
     default:
       std::cerr << "Unknown time unit: " << ext_type.timeunit() << " for timestamp\n";
       return nullptr;
   }
+  const std::string& zone_id = ext_type.timezone();
+  return arrow::timestamp(unit, zone_id);
 }
 
 DataTypePtr ProtoTypeToInterval(const types::ExtGandivaType& ext_type) {
