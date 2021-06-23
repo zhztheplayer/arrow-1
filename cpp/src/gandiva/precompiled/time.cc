@@ -896,4 +896,44 @@ gdv_int64 castBIGINT_daytimeinterval(gdv_day_time_interval in) {
          extractDay_daytimeinterval(in) * MILLIS_IN_DAY;
 }
 
+FORCE_INLINE
+gdv_int32 unix_date_date32(gdv_date32 in) {
+  return in;
+}
+
+FORCE_INLINE
+gdv_int64 unix_seconds_timestampusutc(gdv_timestamp in) {
+  return in / 1000000;
+}
+
+FORCE_INLINE
+gdv_int64 unix_millis_timestampusutc(gdv_timestamp in) {
+  return in / 1000;
+}
+
+FORCE_INLINE
+gdv_int64 unix_micros_timestampusutc(gdv_timestamp in) {
+  return in;
+}
+
+FORCE_INLINE
+gdv_timestamp seconds_to_timestamp_int64(gdv_int64 in) {
+  return in * 1000000;
+}
+
+FORCE_INLINE
+gdv_timestamp millis_to_timestamp_int64(gdv_int64 in) {
+  return in * 1000;
+}
+
+FORCE_INLINE
+gdv_timestamp micros_to_timestamp_int64(gdv_int64 in) {
+  return in;
+}
+
+FORCE_INLINE
+gdv_int32 micros_to_timestamp_date32_date32(gdv_date32 left, gdv_date32 right) {
+  return left - right;
+}
+
 }  // extern "C"

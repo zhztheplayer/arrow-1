@@ -108,6 +108,30 @@ std::vector<NativeFunction> GetDateTimeFunctionRegistry() {
       NativeFunction("castDATE", {}, DataTypeVector{timestamp()}, date32(),
                      kResultNullIfNull, "castDATE32_timestamp"),
 
+      NativeFunction("unix_date", {}, DataTypeVector{date32()}, int32(),
+                     kResultNullIfNull, "unix_date_date32"),
+
+      NativeFunction("unix_seconds", {}, DataTypeVector{timestampusutc()}, int64(),
+                     kResultNullIfNull, "unix_seconds_timestampusutc"),
+
+      NativeFunction("unix_millis", {}, DataTypeVector{timestampusutc()}, int64(),
+                     kResultNullIfNull, "unix_millis_timestampusutc"),
+
+      NativeFunction("unix_micros", {}, DataTypeVector{timestampusutc()}, int64(),
+                     kResultNullIfNull, "unix_micros_timestampusutc"),
+
+      NativeFunction("seconds_to_timestamp", {}, DataTypeVector{int64()}, timestampusutc(),
+                     kResultNullIfNull, "seconds_to_timestamp_int64"),
+
+      NativeFunction("millis_to_timestamp", {}, DataTypeVector{int64()}, timestampusutc(),
+                     kResultNullIfNull, "millis_to_timestamp_int64"),
+
+      NativeFunction("micros_to_timestamp", {}, DataTypeVector{int64()}, timestampusutc(),
+                     kResultNullIfNull, "micros_to_timestamp_int64"),
+
+      NativeFunction("date_diff", {}, DataTypeVector{date32(), date32()}, int32(),
+                     kResultNullIfNull, "micros_to_timestamp_date32_date32"),
+
       DATE_TYPES(LAST_DAY_SAFE_NULL_IF_NULL, last_day, {})};
 
   return date_time_fn_registry_;
