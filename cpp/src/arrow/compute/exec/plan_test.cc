@@ -373,7 +373,17 @@ class TestExecPlanExecution : public ::testing::Test {
   std::shared_ptr<Executor> io_executor_;
 };
 
-TEST_F(TestExecPlanExecution, SourceSink) { TestSourceSink(RecordBatchReader::Make); }
+struct RecordBatchVectorReaderFactory {
+  Result<std::shared_ptr<RecordBatchReader>> operator()(RecordBatchVector batches,
+                                                        std::shared_ptr<Schema> schema) {
+    return RecordBatchReader::Make(batches, schema);
+  }
+};
+
+TEST_F(TestExecPlanExecution, SourceSink) {
+  RecordBatchVectorReaderFactory factory;
+  TestSourceSink(factory);
+}
 
 TEST_F(TestExecPlanExecution, SlowSourceSink) {
   TestSourceSink(SlowRecordBatchReader::Make);
@@ -384,7 +394,8 @@ TEST_F(TestExecPlanExecution, SlowSourceSinkParallel) {
 }
 
 TEST_F(TestExecPlanExecution, StressSourceSink) {
-  TestStressSourceSink(/*num_batches=*/200, RecordBatchReader::Make);
+  RecordBatchVectorReaderFactory factory;
+  TestStressSourceSink(/*num_batches=*/200, factory);
 }
 
 TEST_F(TestExecPlanExecution, StressSlowSourceSink) {
