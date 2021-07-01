@@ -590,9 +590,7 @@ JNIEXPORT jlong JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_createScann
   JniAssertOkOrThrow(scanner_builder->Pool(pool));
 
   std::vector<std::string> column_vector = ToStringVector(env, columns);
-  if (!column_vector.empty()) {
-    JniAssertOkOrThrow(scanner_builder->Project(column_vector));
-  }
+  JniAssertOkOrThrow(scanner_builder->Project(column_vector));
   JniAssertOkOrThrow(scanner_builder->BatchSize(batch_size));
   // initialize filters
   jsize exprs_len = env->GetArrayLength(filter);

@@ -138,6 +138,27 @@ public class TestFileSystemDataset extends TestNativeDataset {
   }
 
   @Test
+  public void testEmptyProjector() throws Exception {
+    ParquetWriteSupport writeSupport = ParquetWriteSupport.writeTempFile(AVRO_SCHEMA_USER, TMP.newFolder(), 1, "a",
+            2, "b");
+
+    FileSystemDatasetFactory factory = new FileSystemDatasetFactory(rootAllocator(), NativeMemoryPool.getDefault(),
+            FileFormat.PARQUET, writeSupport.getOutputURI());
+    ScanOptions options = new ScanOptions(new String[]{}, Filter.EMPTY, 100);
+    Schema schema = inferResultSchemaFromFactory(factory, options);
+    List<ArrowRecordBatch> datum = collectResultFromFactory(factory, options);
+    org.apache.avro.Schema expectedSchema = truncateAvroSchema(writeSupport.getAvroSchema(), 0, 1);
+
+    assertSingleTaskProduced(factory, options);
+    assertEquals(0, schema.getFields().size());
+    assertEquals(1, datum.size());
+
+    AutoCloseables.close(datum);
+    AutoCloseables.close(factory);
+  }
+
+
+  @Test
   public void testParquetBatchSize() throws Exception {
     ParquetWriteSupport writeSupport = ParquetWriteSupport.writeTempFile(AVRO_SCHEMA_USER, TMP.newFolder(),
         1, "a", 2, "b", 3, "c");
