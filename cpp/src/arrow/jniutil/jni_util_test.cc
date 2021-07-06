@@ -19,7 +19,7 @@
 
 #include "arrow/memory_pool.h"
 #include "arrow/testing/gtest_util.h"
-#include "jni/dataset/jni_util.h"
+#include "arrow/jniutil/jni_util.h"
 
 namespace arrow {
 namespace dataset {

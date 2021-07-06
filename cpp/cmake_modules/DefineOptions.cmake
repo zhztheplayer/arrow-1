@@ -238,6 +238,8 @@ if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
 
   define_option(ARROW_JNI "Build the Arrow JNI lib" OFF)
 
+  define_option(ARROW_JNIUTIL "Build Arrow JNI utilities" ON)
+
   define_option(ARROW_JSON "Build Arrow with JSON support (requires RapidJSON)" OFF)
 
   define_option(ARROW_MIMALLOC "Build the Arrow mimalloc-based allocator" OFF)

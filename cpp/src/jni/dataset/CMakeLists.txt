@@ -59,7 +59,7 @@ add_custom_target(arrow_dataset_jni_proto ALL DEPENDS ${PROTO_OUTPUT_FILES})
 set(PROTO_SRCS "${PROTO_OUTPUT_DIR}/DTypes.pb.cc")
 set(PROTO_HDRS "${PROTO_OUTPUT_DIR}/DTypes.pb.h")
 
-set(ARROW_DATASET_JNI_SOURCES jni_wrapper.cc jni_util.cc ${PROTO_SRCS})
+set(ARROW_DATASET_JNI_SOURCES jni_wrapper.cc ${PROTO_SRCS})
 
 add_arrow_lib(arrow_dataset_jni
               BUILD_SHARED
@@ -81,10 +81,3 @@ add_arrow_lib(arrow_dataset_jni
               arrow_dataset_jni_proto)
 
 add_dependencies(arrow_dataset_jni ${ARROW_DATASET_JNI_LIBRARIES})
-
-add_arrow_test(dataset_jni_test
-               SOURCES
-               jni_util_test.cc
-               jni_util.cc
-               EXTRA_INCLUDES
-               ${JNI_INCLUDE_DIRS})

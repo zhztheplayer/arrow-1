@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#include "jni/dataset/jni_util.h"
 #include "arrow/ipc/metadata_internal.h"
+#include "arrow/jniutil/jni_util.h"
 #include "arrow/util/base64.h"
 #include "arrow/util/key_value_metadata.h"
 #include "arrow/util/logging.h"

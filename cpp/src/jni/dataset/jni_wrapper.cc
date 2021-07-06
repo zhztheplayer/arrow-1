@@ -23,10 +23,10 @@
 #include "arrow/dataset/file_base.h"
 #include "arrow/filesystem/localfs.h"
 #include "arrow/ipc/api.h"
+#include "arrow/jniutil/jni_util.h"
 #include "arrow/util/iterator.h"
 
 #include "jni/dataset/DTypes.pb.h"
-#include "jni/dataset/jni_util.h"
 
 #include "org_apache_arrow_dataset_file_JniWrapper.h"
 #include "org_apache_arrow_dataset_jni_JniWrapper.h"
