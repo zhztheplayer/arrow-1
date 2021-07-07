@@ -27,11 +27,9 @@
 #include <flatbuffers/flatbuffers.h>
 
 namespace arrow {
+namespace jniutil {
 
 namespace flatbuf = org::apache::arrow::flatbuf;
-
-namespace dataset {
-namespace jni {
 
 class ReservationListenableMemoryPool::Impl {
  public:
@@ -427,6 +425,5 @@ Result<std::shared_ptr<RecordBatch>> DeserializeUnsafeFromJava(
   return RecordBatch::Make(schema, length, columns_array_data);
 }
 
-}  // namespace jni
-}  // namespace dataset
+}  // namespace jniutil
 }  // namespace arrow

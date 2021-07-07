@@ -89,7 +89,7 @@ arrow::Result<std::shared_ptr<arrow::dataset::FileFormat>> GetFileFormat(
   }
 }
 
-class ReserveFromJava : public arrow::dataset::jni::ReservationListener {
+class ReserveFromJava : public arrow::jniutil::ReservationListener {
  public:
   ReserveFromJava(JavaVM* vm, jobject java_reservation_listener)
       : vm_(vm), java_reservation_listener_(java_reservation_listener) {}
@@ -100,7 +100,7 @@ class ReserveFromJava : public arrow::dataset::jni::ReservationListener {
       return arrow::Status::Invalid("JNIEnv was not attached to current thread");
     }
     env->CallObjectMethod(java_reservation_listener_, reserve_memory_method, size);
-    RETURN_NOT_OK(arrow::dataset::jni::CheckException(env));
+    RETURN_NOT_OK(arrow::jniutil::CheckException(env));
     return arrow::Status::OK();
   }
 
@@ -110,7 +110,7 @@ class ReserveFromJava : public arrow::dataset::jni::ReservationListener {
       return arrow::Status::Invalid("JNIEnv was not attached to current thread");
     }
     env->CallObjectMethod(java_reservation_listener_, unreserve_memory_method, size);
-    RETURN_NOT_OK(arrow::dataset::jni::CheckException(env));
+    RETURN_NOT_OK(arrow::jniutil::CheckException(env));
     return arrow::Status::OK();
   }
 
@@ -322,7 +322,7 @@ arrow::Result<std::shared_ptr<arrow::RecordBatch>> FromBytes(
     JNIEnv* env, std::shared_ptr<arrow::Schema> schema, jbyteArray bytes) {
   ARROW_ASSIGN_OR_RAISE(
       std::shared_ptr<arrow::RecordBatch> batch,
-      arrow::dataset::jni::DeserializeUnsafeFromJava(env, schema, bytes))
+      arrow::jniutil::DeserializeUnsafeFromJava(env, schema, bytes))
   return batch;
 }
 
@@ -347,7 +347,7 @@ arrow::Result<std::shared_ptr<arrow::dataset::Scanner>> MakeJavaDatasetScanner(
         }
         auto bytes = (jbyteArray)env->CallObjectMethod(
             java_serialized_record_batch_iterator, serialized_record_batch_iterator_next);
-        RETURN_NOT_OK(arrow::dataset::jni::CheckException(env));
+        RETURN_NOT_OK(arrow::jniutil::CheckException(env));
         ARROW_ASSIGN_OR_RAISE(auto batch, FromBytes(env, schema, bytes));
         return batch;
       });
@@ -363,18 +363,18 @@ arrow::Result<std::shared_ptr<arrow::dataset::Scanner>> MakeJavaDatasetScanner(
 }
 }  // namespace
 
-using arrow::dataset::jni::CreateGlobalClassReference;
-using arrow::dataset::jni::CreateNativeRef;
-using arrow::dataset::jni::FromSchemaByteArray;
-using arrow::dataset::jni::GetMethodID;
-using arrow::dataset::jni::JStringToCString;
-using arrow::dataset::jni::ReleaseNativeRef;
-using arrow::dataset::jni::RetrieveNativeInstance;
-using arrow::dataset::jni::ToSchemaByteArray;
-using arrow::dataset::jni::ToStringVector;
+using arrow::jniutil::CreateGlobalClassReference;
+using arrow::jniutil::CreateNativeRef;
+using arrow::jniutil::FromSchemaByteArray;
+using arrow::jniutil::GetMethodID;
+using arrow::jniutil::JStringToCString;
+using arrow::jniutil::ReleaseNativeRef;
+using arrow::jniutil::RetrieveNativeInstance;
+using arrow::jniutil::ToSchemaByteArray;
+using arrow::jniutil::ToStringVector;
 
-using arrow::dataset::jni::ReservationListenableMemoryPool;
-using arrow::dataset::jni::ReservationListener;
+using arrow::jniutil::ReservationListenableMemoryPool;
+using arrow::jniutil::ReservationListener;
 
 #define JNI_METHOD_START try {
 // macro ended
@@ -661,7 +661,7 @@ JNIEXPORT jbyteArray JNICALL Java_org_apache_arrow_dataset_jni_JniWrapper_nextRe
   if (record_batch == nullptr) {
     return nullptr;  // stream ended
   }
-  return JniGetOrThrow(arrow::dataset::jni::SerializeUnsafeFromNative(env, record_batch));
+  return JniGetOrThrow(arrow::jniutil::SerializeUnsafeFromNative(env, record_batch));
   JNI_METHOD_END(nullptr)
 }
 

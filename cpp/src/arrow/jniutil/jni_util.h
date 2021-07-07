@@ -27,8 +27,7 @@
 #include <jni.h>
 
 namespace arrow {
-namespace dataset {
-namespace jni {
+namespace jniutil {
 
 Status CheckException(JNIEnv* env);
 
@@ -140,6 +139,5 @@ class ReservationListenableMemoryPool : public MemoryPool {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace jni
-}  // namespace dataset
+}  // namespace jniutil
 }  // namespace arrow
